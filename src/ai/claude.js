@@ -11,7 +11,7 @@ Rules:
 - If the answer isn't in the knowledge base, say so clearly and suggest who might know or where to look
 - Use Slack-friendly formatting (bullet points with -, bold with *bold*)`;
 
-export async function answerQuestion(question, facts) {
+export async function answerQuestion(question, facts, history = []) {
   const knowledgeBlock =
     facts.length > 0
       ? facts.map((f) => `- ${f.content}`).join('\n')
@@ -23,7 +23,7 @@ export async function answerQuestion(question, facts) {
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     system: `${SYSTEM_PROMPT}\n\nToday is ${today}.\n\n*Team Knowledge Base:*\n${knowledgeBlock}`,
-    messages: [{ role: 'user', content: question }],
+    messages: [...history, { role: 'user', content: question }],
   });
 
   return message.content[0].text;

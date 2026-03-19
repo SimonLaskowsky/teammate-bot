@@ -49,6 +49,27 @@ export async function getRelevantFacts(workspaceId) {
   return getAllFacts(workspaceId);
 }
 
+// ── Conversation history ──────────────────────────────────────────────────────
+
+export async function saveMessage(workspaceId, userId, role, content) {
+  const { error } = await supabase
+    .from('conversations')
+    .insert({ workspace_id: workspaceId, user_id: userId, role, content });
+  if (error) throw error;
+}
+
+export async function getRecentMessages(workspaceId, userId, limit = 12) {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('role, content')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).reverse(); // return in chronological order
+}
+
 // ── Integrations ──────────────────────────────────────────────────────────────
 
 export async function saveIntegration(workspaceId, type, tokenEnc, config = {}) {

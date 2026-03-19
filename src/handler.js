@@ -1,4 +1,4 @@
-import { addKnowledge, getAllFacts, getRelevantFacts, ensureWorkspace, getIntegration, removeIntegration } from './knowledge/store.js';
+import { addKnowledge, getAllFacts, getRelevantFacts, ensureWorkspace, getIntegration, removeIntegration, saveMessage, getRecentMessages } from './knowledge/store.js';
 import { answerQuestion } from './ai/claude.js';
 import { hasSession, handleWizardStep, startWizard, cancelSession, listIntegrations } from './setup/wizard.js';
 import * as github from './integrations/github/index.js';
@@ -108,7 +108,13 @@ export async function handleMessage(ctx) {
   }
 
   // ── free-text question → Claude ───────────────────────────────────────────────
-  const facts = await getRelevantFacts(workspaceId);
-  const answer = await answerQuestion(text, facts);
+  const [facts, history] = await Promise.all([
+    getRelevantFacts(workspaceId),
+    getRecentMessages(workspaceId, userId),
+  ]);
+
+  await saveMessage(workspaceId, userId, 'user', text);
+  const answer = await answerQuestion(text, facts, history);
+  await saveMessage(workspaceId, userId, 'assistant', answer);
   await reply(answer);
 }

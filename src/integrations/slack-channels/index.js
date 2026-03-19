@@ -1,4 +1,4 @@
-import { upsertKnowledge } from '../../knowledge/store.js';
+import { upsertKnowledge, getIntegration, saveIntegration } from '../../knowledge/store.js';
 
 export const name = 'slack-channels';
 export const displayName = 'Slack Channels';
@@ -34,6 +34,15 @@ export async function resolveChannel(input) {
     );
   }
   return { id: channel.id, name: channel.name };
+}
+
+// Add a channel to the integration config and sync it — used by both the command and auto-join
+export async function indexChannel(workspaceId, channel) {
+  const existing = await getIntegration(workspaceId, 'slack-channels');
+  const channels = existing?.config?.channels ?? [];
+  if (!channels.find((c) => c.id === channel.id)) channels.push(channel);
+  await saveIntegration(workspaceId, 'slack-channels', existing?.token_enc ?? '', { channels });
+  return sync(workspaceId, { token_enc: '', config: { channels: [channel] } });
 }
 
 // Returns { synced, failed }

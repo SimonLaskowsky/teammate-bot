@@ -3,7 +3,6 @@ import { answerQuestion } from './ai/claude.js';
 import { hasSession, handleWizardStep, startWizard, cancelSession, listIntegrations } from './setup/wizard.js';
 import * as github from './integrations/github/index.js';
 import * as slackChannels from './integrations/slack-channels/index.js';
-import { saveIntegration } from './knowledge/store.js';
 
 // Map integration name → module (add new integrations here)
 const INTEGRATIONS = { github, 'slack-channels': slackChannels };
@@ -68,14 +67,8 @@ export async function handleMessage(ctx) {
     await reply(`Looking up ${channelArg}...`);
     try {
       const channel = await slackChannels.resolveChannel(channelArg);
-      const existing = await getIntegration(workspaceId, 'slack-channels');
-      const channels = existing?.config?.channels ?? [];
-      if (!channels.find((c) => c.id === channel.id)) channels.push(channel);
-      await saveIntegration(workspaceId, 'slack-channels', existing?.token_enc ?? '', { channels });
-
       await reply(`Indexing *#${channel.name}*...`);
-      const integration = { token_enc: '', config: { channels: [channel] } };
-      const { synced, failed } = await slackChannels.sync(workspaceId, integration);
+      const { synced, failed } = await slackChannels.indexChannel(workspaceId, channel);
       let msg = `Done! Indexed *${synced}* messages from *#${channel.name}*.`;
       if (failed.length > 0) msg += `\n\n⚠️ Issues: ${failed.join(', ')}`;
       await reply(msg);

@@ -1,6 +1,8 @@
 import pkg from '@slack/bolt';
 const { App } = pkg;
 import { handleMessage } from '../../handler.js';
+import { indexChannel } from '../../integrations/slack-channels/index.js';
+import { ensureWorkspace } from '../../knowledge/store.js';
 
 const ADMIN_USERS = process.env.ADMIN_USERS?.split(',').map((u) => u.trim()) ?? [];
 
@@ -35,6 +37,26 @@ export function createSlackApp() {
     const text = event.text.replace(/<@[^>]+>/g, '').trim();
     if (!text) return;
     await handleMessage(makeCtx({ text, userId: event.user, workspaceId: event.team, say }));
+  });
+
+  // Auto-index channel when bot is invited to it
+  app.event('member_joined_channel', async ({ event, client }) => {
+    const auth = await client.auth.test();
+    if (event.user !== auth.user_id) return; // someone else joined, not the bot
+
+    const workspaceId = event.team;
+    const channelId = event.channel;
+
+    try {
+      await ensureWorkspace(workspaceId);
+      // Look up channel name
+      const info = await client.conversations.info({ channel: channelId });
+      const channel = { id: channelId, name: info.channel.name };
+      const { synced } = await indexChannel(workspaceId, channel);
+      console.log(`[auto-index] Indexed #${channel.name}: ${synced} messages`);
+    } catch (err) {
+      console.error('[auto-index] Failed:', err.message);
+    }
   });
 
   app.error(async (error) => console.error('Slack error:', error));

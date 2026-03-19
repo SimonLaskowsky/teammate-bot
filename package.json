@@ -1,0 +1,19 @@
+{
+  "name": "teammate-bot",
+  "version": "0.1.0",
+  "description": "AI bot that acts as a knowledgeable team member inside Microsoft Teams",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@slack/bolt": "^3.22.0",
+    "@supabase/supabase-js": "^2.49.0",
+    "botbuilder": "^4.23.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.0"
+  }
+}

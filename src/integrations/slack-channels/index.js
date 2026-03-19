@@ -61,7 +61,7 @@ export async function sync(workspaceId, integration) {
       if (!data.ok) { failed.push(`#${name} (${data.error})`); continue; }
 
       const messages = (data.messages ?? [])
-        .filter((m) => m.type === 'message' && !m.subtype && m.text?.length > 30)
+        .filter((m) => m.type === 'message' && !m.subtype && m.text?.trim().length > 3)
         .reverse();
 
       for (const msg of messages) {

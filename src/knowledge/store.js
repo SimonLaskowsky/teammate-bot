@@ -5,17 +5,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-export async function ensureWorkspace(workspaceId, platform = 'slack') {
-  const { data } = await supabase
-    .from('workspaces')
-    .select('id')
-    .eq('id', workspaceId)
-    .single();
+// ── Workspaces ────────────────────────────────────────────────────────────────
 
-  if (!data) {
-    await supabase.from('workspaces').insert({ id: workspaceId, platform });
-  }
+export async function ensureWorkspace(workspaceId, platform = 'slack') {
+  const { data } = await supabase.from('workspaces').select('id').eq('id', workspaceId).single();
+  if (!data) await supabase.from('workspaces').insert({ id: workspaceId, platform });
 }
+
+// ── Knowledge entries ─────────────────────────────────────────────────────────
 
 export async function addKnowledge({ workspaceId, content, addedBy, source = 'manual', tags = [] }) {
   const { data, error } = await supabase
@@ -23,9 +20,17 @@ export async function addKnowledge({ workspaceId, content, addedBy, source = 'ma
     .insert({ workspace_id: workspaceId, content, source, added_by: addedBy, tags })
     .select()
     .single();
-
   if (error) throw error;
   return data;
+}
+
+// Upsert by source_id — used by integrations to avoid duplicates on re-sync
+export async function upsertKnowledge({ workspaceId, content, source, sourceId, addedBy }) {
+  const { error } = await supabase.from('knowledge').upsert(
+    { workspace_id: workspaceId, content, source, source_id: sourceId, added_by: addedBy },
+    { onConflict: 'workspace_id,source_id' }
+  );
+  if (error) throw error;
 }
 
 export async function getAllFacts(workspaceId) {
@@ -34,13 +39,55 @@ export async function getAllFacts(workspaceId) {
     .select('content, source, added_by, created_at')
     .eq('workspace_id', workspaceId)
     .order('created_at', { ascending: false });
-
   if (error) throw error;
   return data ?? [];
 }
 
-// For MVP: retrieve all facts and let Claude determine relevance.
+// For MVP: pass all facts to Claude and let it determine relevance.
 // Phase 2: replace with pgvector similarity search.
 export async function getRelevantFacts(workspaceId) {
   return getAllFacts(workspaceId);
+}
+
+// ── Integrations ──────────────────────────────────────────────────────────────
+
+export async function saveIntegration(workspaceId, type, tokenEnc, config = {}) {
+  const { error } = await supabase
+    .from('integrations')
+    .upsert(
+      { workspace_id: workspaceId, type, token_enc: tokenEnc, config, active: true },
+      { onConflict: 'workspace_id,type' }
+    );
+  if (error) throw error;
+}
+
+export async function getIntegration(workspaceId, type) {
+  const { data, error } = await supabase
+    .from('integrations')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('type', type)
+    .eq('active', true)
+    .single();
+  if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+  return data ?? null;
+}
+
+export async function getActiveIntegrations(workspaceId) {
+  const { data, error } = await supabase
+    .from('integrations')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('active', true);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function removeIntegration(workspaceId, type) {
+  const { error } = await supabase
+    .from('integrations')
+    .update({ active: false })
+    .eq('workspace_id', workspaceId)
+    .eq('type', type);
+  if (error) throw error;
 }

@@ -88,8 +88,10 @@ export async function handleMessage(ctx) {
       return;
     }
     await reply(`Syncing ${type}...`);
-    const count = await handler.sync(workspaceId, integration);
-    await reply(`Done! Synced *${count}* item(s).`);
+    const { synced, failed } = await handler.sync(workspaceId, integration);
+    let msg = `Done! Synced *${synced}* item(s).`;
+    if (failed.length > 0) msg += `\n\n⚠️ Couldn't access: ${failed.join(', ')}`;
+    await reply(msg);
     return;
   }
 

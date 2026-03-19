@@ -96,11 +96,10 @@ export async function handleWizardStep(ctx) {
     sessions.delete(ctx.userId);
 
     await ctx.reply(`Syncing ${repos.length} repo(s)... give me a moment.`);
-    const count = await integration.sync(ctx.workspaceId, { token_enc: tokenEnc, config: { repos } });
-    await ctx.reply(
-      `Done! Indexed *${count}* repo(s) into the knowledge base.\n` +
-      `Type \`sync github\` anytime to pull the latest.`
-    );
+    const { synced, failed } = await integration.sync(ctx.workspaceId, { token_enc: tokenEnc, config: { repos } });
+    let msg = `Done! Indexed *${synced}* repo(s) into the knowledge base.\nType \`sync github\` anytime to pull the latest.`;
+    if (failed.length > 0) msg += `\n\n⚠️ Couldn't access: ${failed.join(', ')}`;
+    await ctx.reply(msg);
   }
 }
 

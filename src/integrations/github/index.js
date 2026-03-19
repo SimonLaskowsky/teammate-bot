@@ -63,8 +63,8 @@ export async function sync(workspaceId, integration) {
       });
       synced++;
     } catch (err) {
-      console.error(`[github] Failed to sync ${repo}:`, err.message);
-      failed.push(repo);
+      console.error(`[github] Failed to sync ${repo}:`, err.message, err.stack);
+      failed.push(`${repo} (${err.message})`);
     }
   }
 

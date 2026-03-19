@@ -11,7 +11,7 @@ function headers(token, accept = 'application/vnd.github.v3.json') {
 }
 
 export async function validate(token) {
-  const res = await fetch(`${BASE}/user`, { headers: headers(token) });
+  const res = await fetch(`${BASE}/user/repos?per_page=1`, { headers: headers(token) });
   return res.ok;
 }
 

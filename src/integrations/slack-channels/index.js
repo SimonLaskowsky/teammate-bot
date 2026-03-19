@@ -19,7 +19,7 @@ export async function resolveChannel(input) {
   const clean = input.replace(/^#/, '').trim();
 
   const res = await fetch(
-    `${SLACK_API}/conversations.list?limit=200&exclude_archived=true&types=public_channel,private_channel`,
+    `${SLACK_API}/conversations.list?limit=200&exclude_archived=true&types=public_channel`,
     { headers: slackHeaders() }
   );
   const data = await res.json();

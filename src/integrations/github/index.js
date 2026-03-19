@@ -11,6 +11,15 @@ export async function validate(token) {
   return res.ok;
 }
 
+export async function listRepos(token) {
+  const res = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  const repos = await res.json();
+  return repos.map((r) => r.full_name);
+}
+
 export async function sync(workspaceId, integration) {
   const token = decrypt(integration.token_enc);
   const repos = integration.config.repos ?? [];

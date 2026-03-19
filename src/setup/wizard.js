@@ -54,16 +54,38 @@ export async function handleWizardStep(ctx) {
     session.step = 'awaiting_repos';
     sessions.set(ctx.userId, session);
 
-    await ctx.reply(
-      `Token looks good! Which repos should I index?\n` +
-      `Format: \`owner/repo\` — comma-separated for multiple\n` +
-      `Example: \`myorg/backend, myorg/docs\``
-    );
+    // Fetch and show available repos so user can pick
+    const repos = await integration.listRepos(token);
+    if (repos.length === 0) {
+      await ctx.reply(
+        `Token looks good! I couldn't find any repos — paste the repo names manually:\n` +
+        `Format: \`owner/repo\` — comma-separated for multiple`
+      );
+    } else {
+      const list = repos.map((r, i) => `${i + 1}. ${r}`).join('\n');
+      await ctx.reply(
+        `Token looks good! Here are your repos:\n\n${list}\n\n` +
+        `Reply with the numbers (e.g. \`1, 3\`), repo names, or \`all\` to index everything.`
+      );
+      session.repoList = repos;
+      sessions.set(ctx.userId, session);
+    }
     return;
   }
 
   if (session.step === 'awaiting_repos') {
-    const repos = ctx.text.split(',').map((r) => r.trim()).filter(Boolean);
+    let repos;
+
+    if (/^all$/i.test(ctx.text.trim()) && session.repoList) {
+      repos = session.repoList;
+    } else if (/^[\d\s,]+$/.test(ctx.text.trim()) && session.repoList) {
+      // User replied with numbers like "1, 3, 5"
+      const indices = ctx.text.split(',').map((n) => parseInt(n.trim()) - 1);
+      repos = indices.map((i) => session.repoList[i]).filter(Boolean);
+    } else {
+      repos = ctx.text.split(',').map((r) => r.trim()).filter(Boolean);
+    }
+
     if (repos.length === 0) {
       await ctx.reply('Please provide at least one repo (e.g. `myorg/backend`)');
       return;

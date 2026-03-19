@@ -10,19 +10,29 @@ function slackHeaders() {
   return { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` };
 }
 
-export async function resolveChannel(nameOrId) {
-  // If it looks like an ID already (C01234ABC), return as-is
-  if (/^[A-Z0-9]{9,11}$/.test(nameOrId)) return { id: nameOrId, name: nameOrId };
+export async function resolveChannel(input) {
+  // Slack auto-formats channel mentions as <#C07ABC123|channel-name> — extract ID directly
+  const mentionMatch = input.match(/^<#([A-Za-z0-9]+)\|(.+)>$/);
+  if (mentionMatch) return { id: mentionMatch[1], name: mentionMatch[2] };
 
-  const clean = nameOrId.replace(/^#/, '');
-  const res = await fetch(`${SLACK_API}/conversations.list?limit=200&exclude_archived=true`, {
-    headers: slackHeaders(),
-  });
+  // Plain text: #channel-name or channel-name
+  const clean = input.replace(/^#/, '').trim();
+
+  const res = await fetch(
+    `${SLACK_API}/conversations.list?limit=200&exclude_archived=true&types=public_channel,private_channel`,
+    { headers: slackHeaders() }
+  );
   const data = await res.json();
-  if (!data.ok) throw new Error(data.error);
+  if (!data.ok) throw new Error(`Slack API error: ${data.error}`);
 
-  const channel = data.channels.find((c) => c.name === clean);
-  if (!channel) throw new Error(`Channel #${clean} not found — make sure the bot is invited to it first`);
+  const channel = data.channels.find((c) => c.name === clean || c.name_normalized === clean);
+  if (!channel) {
+    throw new Error(
+      `Channel #${clean} not found. Make sure:\n` +
+      `1. You invited the bot: \`/invite @Teammate\` in the channel\n` +
+      `2. The \`channels:read\` scope is added to the Slack app and reinstalled`
+    );
+  }
   return { id: channel.id, name: channel.name };
 }
 

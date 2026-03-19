@@ -67,7 +67,7 @@ export async function handleMessage(ctx) {
     const channelArg = indexMatch[1].trim();
     await reply(`Looking up ${channelArg}...`);
     try {
-      const channel = await slackChannels.resolveChannel(channelArg.replace(/^<#[A-Z0-9]+\|(.+)>$/, '$1').replace(/^#/, ''));
+      const channel = await slackChannels.resolveChannel(channelArg);
       const existing = await getIntegration(workspaceId, 'slack-channels');
       const channels = existing?.config?.channels ?? [];
       if (!channels.find((c) => c.id === channel.id)) channels.push(channel);

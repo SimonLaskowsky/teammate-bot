@@ -45,6 +45,22 @@ export async function indexChannel(workspaceId, channel) {
   return sync(workspaceId, { token_enc: '', config: { channels: [channel] } });
 }
 
+async function resolveUsers(userIds) {
+  const map = new Map();
+  await Promise.all([...new Set(userIds)].map(async (userId) => {
+    try {
+      const res = await fetch(`${SLACK_API}/users.info?user=${userId}`, { headers: slackHeaders() });
+      const data = await res.json();
+      if (data.ok) {
+        map.set(userId, data.user.profile.display_name || data.user.real_name || userId);
+      }
+    } catch {
+      // fallback to userId handled below
+    }
+  }));
+  return map;
+}
+
 // Returns { synced, failed }
 export async function sync(workspaceId, integration) {
   const channels = integration.config.channels ?? [];
@@ -64,10 +80,13 @@ export async function sync(workspaceId, integration) {
         .filter((m) => m.type === 'message' && !m.subtype && m.text?.trim().length > 3)
         .reverse();
 
+      const userMap = await resolveUsers(messages.map((m) => m.user).filter(Boolean));
+
       for (const msg of messages) {
+        const userName = userMap.get(msg.user) ?? msg.user ?? 'unknown';
         await upsertKnowledge({
           workspaceId,
-          content: `[#${name}] ${msg.text}`,
+          content: `[#${name}] ${userName}: ${msg.text}`,
           source: 'slack',
           sourceId: `slack:${id}:${msg.ts}`,
           addedBy: 'slack-indexer',

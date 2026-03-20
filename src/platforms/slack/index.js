@@ -13,7 +13,20 @@ async function getChannelName(client, channelId) {
     channelNameCache.set(channelId, info.channel.name);
     return info.channel.name;
   } catch {
-    return channelId; // fallback to raw ID
+    return channelId;
+  }
+}
+
+const userNameCache = new Map();
+async function getUserName(client, userId) {
+  if (userNameCache.has(userId)) return userNameCache.get(userId);
+  try {
+    const info = await client.users.info({ user: userId });
+    const name = info.user.profile.display_name || info.user.real_name || userId;
+    userNameCache.set(userId, name);
+    return name;
+  } catch {
+    return userId;
   }
 }
 
@@ -49,12 +62,15 @@ export function createSlackApp() {
       await handleMessage(makeCtx({ text: message.text.trim(), userId: message.user, workspaceId: message.team, say }));
     } else {
       // Channel: passively absorb as knowledge so the bot follows the conversation
-      const channelName = await getChannelName(client, message.channel);
+      const [channelName, userName] = await Promise.all([
+        getChannelName(client, message.channel),
+        getUserName(client, message.user),
+      ]);
       const workspaceId = message.team ?? message.team_id;
-      console.log(`[live-listener] #${channelName}: ${message.text.trim().slice(0, 60)}`);
+      console.log(`[live-listener] #${channelName} ${userName}: ${message.text.trim().slice(0, 60)}`);
       upsertKnowledge({
         workspaceId,
-        content: `[#${channelName}] ${message.text.trim()}`,
+        content: `[#${channelName}] ${userName}: ${message.text.trim()}`,
         source: 'slack',
         sourceId: `slack:${message.channel}:${message.ts}`,
         addedBy: 'live-listener',

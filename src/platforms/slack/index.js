@@ -2,12 +2,25 @@ import pkg from '@slack/bolt';
 const { App } = pkg;
 import { handleMessage } from '../../handler.js';
 import { indexChannel } from '../../integrations/slack-channels/index.js';
-import { ensureWorkspace } from '../../knowledge/store.js';
+import { ensureWorkspace, upsertKnowledge } from '../../knowledge/store.js';
+
+// Simple in-memory cache so we don't call conversations.info on every message
+const channelNameCache = new Map();
+async function getChannelName(client, channelId) {
+  if (channelNameCache.has(channelId)) return channelNameCache.get(channelId);
+  try {
+    const info = await client.conversations.info({ channel: channelId });
+    channelNameCache.set(channelId, info.channel.name);
+    return info.channel.name;
+  } catch {
+    return channelId; // fallback to raw ID
+  }
+}
 
 const ADMIN_USERS = process.env.ADMIN_USERS?.split(',').map((u) => u.trim()) ?? [];
 
-function makeCtx({ text, userId, workspaceId, say }) {
-  return { text, userId, workspaceId, platform: 'slack', isAdmin: ADMIN_USERS.includes(userId), reply: say };
+function makeCtx({ text, userId, workspaceId, say, channelHistory = [] }) {
+  return { text, userId, workspaceId, platform: 'slack', isAdmin: ADMIN_USERS.includes(userId), reply: say, channelHistory };
 }
 
 export function createSlackApp() {
@@ -28,15 +41,42 @@ export function createSlackApp() {
     }));
   });
 
-  app.message(async ({ message, say }) => {
+  app.message(async ({ message, say, client }) => {
     if (message.subtype || !message.text || !message.user) return;
-    await handleMessage(makeCtx({ text: message.text.trim(), userId: message.user, workspaceId: message.team, say }));
+
+    if (message.channel_type === 'im') {
+      // DM: full Q&A
+      await handleMessage(makeCtx({ text: message.text.trim(), userId: message.user, workspaceId: message.team, say }));
+    } else {
+      // Channel: passively absorb as knowledge so the bot follows the conversation
+      const channelName = await getChannelName(client, message.channel);
+      upsertKnowledge({
+        workspaceId: message.team,
+        content: `[#${channelName}] ${message.text.trim()}`,
+        source: 'slack',
+        sourceId: `slack:${message.channel}:${message.ts}`,
+        addedBy: 'live-listener',
+      }).catch((err) => console.error('[live-listener]', err.message));
+    }
   });
 
-  app.event('app_mention', async ({ event, say }) => {
+  app.event('app_mention', async ({ event, say, client }) => {
     const text = event.text.replace(/<@[^>]+>/g, '').trim();
     if (!text) return;
-    await handleMessage(makeCtx({ text, userId: event.user, workspaceId: event.team, say }));
+
+    // Fetch recent channel messages so the bot has live conversation context
+    let channelHistory = [];
+    try {
+      const result = await client.conversations.history({ channel: event.channel, limit: 30 });
+      channelHistory = (result.messages ?? [])
+        .filter((m) => m.type === 'message' && !m.subtype && m.text && m.user)
+        .reverse() // oldest first
+        .map((m) => `<@${m.user}>: ${m.text}`);
+    } catch (err) {
+      console.error('[channel-context] Failed to fetch history:', err.message);
+    }
+
+    await handleMessage(makeCtx({ text, userId: event.user, workspaceId: event.team, say, channelHistory }));
   });
 
   // Auto-index channel when bot is invited to it

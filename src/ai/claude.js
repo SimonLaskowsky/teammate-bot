@@ -11,7 +11,7 @@ Rules:
 - If the answer isn't in the knowledge base, say so clearly and suggest who might know or where to look
 - Use Slack-friendly formatting (bullet points with -, bold with *bold*)`;
 
-export async function answerQuestion(question, facts, history = []) {
+export async function answerQuestion(question, facts, history = [], channelHistory = []) {
   const knowledgeBlock =
     facts.length > 0
       ? facts.map((f) => `- ${f.content}`).join('\n')
@@ -19,10 +19,15 @@ export async function answerQuestion(question, facts, history = []) {
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
+  let systemPrompt = `${SYSTEM_PROMPT}\n\nToday is ${today}.\n\n*Team Knowledge Base:*\n${knowledgeBlock}`;
+  if (channelHistory.length > 0) {
+    systemPrompt += `\n\n*Recent channel conversation (use this as live context):*\n${channelHistory.join('\n')}`;
+  }
+
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
-    system: `${SYSTEM_PROMPT}\n\nToday is ${today}.\n\n*Team Knowledge Base:*\n${knowledgeBlock}`,
+    system: systemPrompt,
     messages: [...history, { role: 'user', content: question }],
   });
 

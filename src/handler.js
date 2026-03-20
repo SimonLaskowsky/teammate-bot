@@ -20,7 +20,7 @@ const HELP_TEXT =
   'Or just ask me anything!';
 
 export async function handleMessage(ctx) {
-  const { text, userId, workspaceId, reply, isAdmin } = ctx;
+  const { text, userId, workspaceId, reply, isAdmin, channelHistory = [] } = ctx;
 
   await ensureWorkspace(workspaceId, ctx.platform);
 
@@ -148,7 +148,7 @@ export async function handleMessage(ctx) {
   ]);
 
   await saveMessage(workspaceId, userId, 'user', text);
-  const answer = await answerQuestion(text, facts, history);
+  const answer = await answerQuestion(text, facts, history, channelHistory);
   await saveMessage(workspaceId, userId, 'assistant', answer);
   await reply(answer);
 }

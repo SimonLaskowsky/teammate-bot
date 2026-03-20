@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { embed } from '../ai/embeddings.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -15,9 +16,10 @@ export async function ensureWorkspace(workspaceId, platform = 'slack') {
 // ── Knowledge entries ─────────────────────────────────────────────────────────
 
 export async function addKnowledge({ workspaceId, content, addedBy, source = 'manual', tags = [] }) {
+  const embedding = await embed(content).catch(() => null);
   const { data, error } = await supabase
     .from('knowledge')
-    .insert({ workspace_id: workspaceId, content, source, added_by: addedBy, tags })
+    .insert({ workspace_id: workspaceId, content, source, added_by: addedBy, tags, embedding })
     .select()
     .single();
   if (error) throw error;
@@ -26,8 +28,9 @@ export async function addKnowledge({ workspaceId, content, addedBy, source = 'ma
 
 // Upsert by source_id — used by integrations to avoid duplicates on re-sync
 export async function upsertKnowledge({ workspaceId, content, source, sourceId, addedBy }) {
+  const embedding = await embed(content).catch(() => null);
   const { error } = await supabase.from('knowledge').upsert(
-    { workspace_id: workspaceId, content, source, source_id: sourceId, added_by: addedBy },
+    { workspace_id: workspaceId, content, source, source_id: sourceId, added_by: addedBy, embedding },
     { onConflict: 'workspace_id,source_id' }
   );
   if (error) throw error;
@@ -43,9 +46,19 @@ export async function getAllFacts(workspaceId) {
   return data ?? [];
 }
 
-// For MVP: pass all facts to Claude and let it determine relevance.
-// Phase 2: replace with pgvector similarity search.
-export async function getRelevantFacts(workspaceId) {
+export async function getRelevantFacts(workspaceId, question) {
+  try {
+    const embedding = await embed(question);
+    const { data, error } = await supabase.rpc('search_knowledge', {
+      query_embedding: embedding,
+      p_workspace_id: workspaceId,
+      p_match_count: 10,
+    });
+    if (error) throw error;
+    if (data?.length) return data;
+  } catch (err) {
+    console.error('[getRelevantFacts] vector search failed, falling back:', err.message);
+  }
   return getAllFacts(workspaceId);
 }
 

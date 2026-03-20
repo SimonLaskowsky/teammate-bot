@@ -143,7 +143,7 @@ export async function handleMessage(ctx) {
 
   // ── free-text question → Claude ───────────────────────────────────────────────
   const [facts, history] = await Promise.all([
-    getRelevantFacts(workspaceId),
+    getRelevantFacts(workspaceId, text),
     getRecentMessages(workspaceId, userId),
   ]);
 

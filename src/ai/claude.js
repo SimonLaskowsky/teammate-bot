@@ -9,7 +9,8 @@ Rules:
 - Be concise and friendly — this is a Slack conversation, not a document
 - Only answer based on the knowledge base provided; don't invent facts
 - If the answer isn't in the knowledge base, say so clearly and suggest who might know or where to look
-- Use Slack-friendly formatting (bullet points with -, bold with *bold*)`;
+- Use Slack-friendly formatting (bullet points with -, bold with *bold*)
+- Facts are listed newest first. When facts conflict, always prefer the most recent one — it overrides older information`;
 
 export async function answerQuestion(question, facts, history = [], channelHistory = []) {
   const knowledgeBlock =

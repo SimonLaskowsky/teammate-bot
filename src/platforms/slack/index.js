@@ -50,8 +50,10 @@ export function createSlackApp() {
     } else {
       // Channel: passively absorb as knowledge so the bot follows the conversation
       const channelName = await getChannelName(client, message.channel);
+      const workspaceId = message.team ?? message.team_id;
+      console.log(`[live-listener] #${channelName}: ${message.text.trim().slice(0, 60)}`);
       upsertKnowledge({
-        workspaceId: message.team,
+        workspaceId,
         content: `[#${channelName}] ${message.text.trim()}`,
         source: 'slack',
         sourceId: `slack:${message.channel}:${message.ts}`,

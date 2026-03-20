@@ -1,5 +1,16 @@
 import 'dotenv/config';
 
+// @slack/socket-mode has a known bug where Slack's periodic "server explicit disconnect"
+// (connection rotation) crashes the process if it arrives during reconnection.
+// We catch it here so Railway can restart cleanly instead of looping on crashes.
+process.on('uncaughtException', (err) => {
+  if (err.message?.includes('server explicit disconnect')) {
+    console.warn('[warn] Slack sent a server explicit disconnect — restarting process.');
+    process.exit(1);
+  }
+  throw err;
+});
+
 const platform = process.env.PLATFORM ?? 'slack';
 
 if (platform === 'slack') {

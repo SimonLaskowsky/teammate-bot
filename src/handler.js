@@ -14,6 +14,7 @@ const HELP_TEXT =
   '`info` — show knowledge base summary\n' +
   '`add this: <fact>` — add a fact _(admin)_\n' +
   '`remove this: <text>` — remove matching manual facts _(admin)_\n' +
+  '`facts` — list all manually added facts\n' +
   '`index channel #channel-name` — index a Slack channel _(admin)_\n' +
   '`sync slack` — re-sync all indexed channels _(admin)_\n' +
   '`connect github` — connect GitHub _(admin)_\n' +
@@ -69,9 +70,18 @@ export async function handleMessage(ctx) {
     if (!isAdmin) { await reply('Sorry, only admins can remove facts.'); return; }
     const query = text.replace(/^remove this:/i, '').trim();
     if (!query) { await reply('Please provide text to match after "remove this:"'); return; }
-    const count = await removeManualFact(workspaceId, query);
-    if (count === 0) await reply(`No manual facts found matching _"${query}"_.`);
-    else await reply(`Removed *${count}* fact(s) matching _"${query}"_.`);
+    const { count, matched } = await removeManualFact(workspaceId, query);
+    if (count === 0) await reply(`No manual facts found matching _"${query}"_. Type \`facts\` to see what's stored.`);
+    else await reply(`Removed *${count}* fact(s):\n${matched.map((f) => `- _${f}_`).join('\n')}`);
+    return;
+  }
+
+  // ── facts ─────────────────────────────────────────────────────────────────────
+  if (/^facts$/i.test(text)) {
+    const facts = await getManualFacts(workspaceId);
+    if (facts.length === 0) { await reply('No manual facts yet. Add one with `add this: <fact>`.'); return; }
+    const list = facts.map((f, i) => `${i + 1}. ${f}`).join('\n');
+    await reply(`*Manual facts (${facts.length}):*\n\n${list}`);
     return;
   }
 

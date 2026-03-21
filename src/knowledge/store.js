@@ -75,12 +75,15 @@ export async function removeManualFact(workspaceId, query) {
     .from('knowledge')
     .select('id, content')
     .eq('workspace_id', workspaceId)
-    .eq('source', 'manual')
-    .ilike('content', `%${query}%`);
+    .eq('source', 'manual');
   if (error) throw error;
-  if (!data?.length) return 0;
-  await supabase.from('knowledge').delete().in('id', data.map((r) => r.id));
-  return data.length;
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  const matches = (data ?? []).filter((row) =>
+    words.every((w) => row.content.toLowerCase().includes(w))
+  );
+  if (!matches.length) return { count: 0, matched: [] };
+  await supabase.from('knowledge').delete().in('id', matches.map((r) => r.id));
+  return { count: matches.length, matched: matches.map((r) => r.content) };
 }
 
 export async function deleteKnowledge(workspaceId, sourceId) {

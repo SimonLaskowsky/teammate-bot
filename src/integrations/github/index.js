@@ -144,6 +144,25 @@ export async function sync(workspaceId, integration) {
         }
       }
 
+      // ── Recent commits ───────────────────────────────────────────────────────
+      const commits = await fetchJson(
+        `${BASE}/repos/${repo}/commits?per_page=20`,
+        token
+      );
+      if (commits) {
+        const summary = commits
+          .map((c) => `- ${c.commit.message.split('\n')[0]} (${c.commit.author.name}, ${c.commit.author.date.slice(0, 10)})`)
+          .join('\n');
+        await upsertKnowledge({
+          workspaceId,
+          content: `[${repo} recent commits]\n${summary}`,
+          source: 'github',
+          sourceId: `github:${repo}:commits`,
+          addedBy: 'github-integration',
+        });
+        synced++;
+      }
+
       // ── Open PRs ─────────────────────────────────────────────────────────────
       const prs = await fetchJson(
         `${BASE}/repos/${repo}/pulls?state=open&per_page=20&sort=updated`,

@@ -2,9 +2,10 @@ import { encrypt } from '../crypto.js';
 import { saveIntegration, removeIntegration, getActiveIntegrations } from '../knowledge/store.js';
 import * as github from '../integrations/github/index.js';
 import * as clickup from '../integrations/clickup/index.js';
+import * as slackChannels from '../integrations/slack-channels/index.js';
 
 // Registry of available integrations — add new ones here
-const INTEGRATIONS = { github, clickup };
+const INTEGRATIONS = { github, clickup, 'slack-channels': slackChannels };
 
 // In-memory session state per user
 // { userId → { type, step, token, itemList } }

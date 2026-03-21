@@ -77,7 +77,8 @@ async function fetchJson(url, token) {
 export async function registerWebhooks(workspaceId, token, config) {
   if (!process.env.PUBLIC_URL) return null;
   const webhookSecret = randomBytes(32).toString('hex');
-  const url = `${process.env.PUBLIC_URL}/webhooks/github`;
+  const baseUrl = process.env.PUBLIC_URL.startsWith('http') ? process.env.PUBLIC_URL : `https://${process.env.PUBLIC_URL}`;
+  const url = `${baseUrl}/webhooks/github`;
   for (const repo of config.repos ?? []) {
     const res = await fetch(`${BASE}/repos/${repo}/hooks`, {
       method: 'POST',

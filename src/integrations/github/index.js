@@ -3,6 +3,9 @@ import { upsertKnowledge } from '../../knowledge/store.js';
 
 export const name = 'github';
 export const displayName = 'GitHub';
+export const tokenPrompt =
+  'Paste your Personal Access Token.\n' +
+  '_(Generate one at https://github.com/settings/tokens — needs `repo` read scope)_';
 
 const BASE = 'https://api.github.com';
 
@@ -26,6 +29,15 @@ export async function getCommitDetails(repo, sha, token) {
     `Stats: +${data.stats?.additions ?? 0} / -${data.stats?.deletions ?? 0} lines`,
     files ? `Files changed:\n${files}` : 'No file changes',
   ].join('\n');
+}
+
+export async function listItems(token) {
+  const items = (await listRepos(token)).map((r) => ({ id: r, name: r }));
+  return { items, label: 'repos' };
+}
+
+export function buildConfig(selectedItems) {
+  return { repos: selectedItems.map((i) => i.id) };
 }
 
 export async function validate(token) {

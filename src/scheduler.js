@@ -1,8 +1,9 @@
 import { getAllActiveIntegrations } from './knowledge/store.js';
 import * as github from './integrations/github/index.js';
+import * as clickup from './integrations/clickup/index.js';
 import * as slackChannels from './integrations/slack-channels/index.js';
 
-const HANDLERS = { github, 'slack-channels': slackChannels };
+const HANDLERS = { github, clickup, 'slack-channels': slackChannels };
 const INTERVAL_MS = (Number(process.env.SYNC_INTERVAL_MINUTES) || 60) * 60 * 1000;
 
 async function syncAll() {

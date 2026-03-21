@@ -2,11 +2,12 @@ import { addKnowledge, getAllFacts, getRelevantFacts, ensureWorkspace, getIntegr
 import { answerQuestion } from './ai/claude.js';
 import { hasSession, handleWizardStep, startWizard, cancelSession, listIntegrations } from './setup/wizard.js';
 import * as github from './integrations/github/index.js';
+import * as clickup from './integrations/clickup/index.js';
 import * as slackChannels from './integrations/slack-channels/index.js';
 import { decrypt } from './crypto.js';
 
 // Map integration name → module (add new integrations here)
-const INTEGRATIONS = { github, 'slack-channels': slackChannels };
+const INTEGRATIONS = { github, clickup, 'slack-channels': slackChannels };
 
 const HELP_TEXT =
   '*Teammate Bot — commands:*\n\n' +
@@ -16,6 +17,8 @@ const HELP_TEXT =
   '`sync slack` — re-sync all indexed channels _(admin)_\n' +
   '`connect github` — connect GitHub _(admin)_\n' +
   '`sync github` — re-sync GitHub repos _(admin)_\n' +
+  '`connect clickup` — connect ClickUp _(admin)_\n' +
+  '`sync clickup` — re-sync ClickUp tasks _(admin)_\n' +
   '`integrations` — list active integrations\n' +
   '`help` — show this message\n\n' +
   'Or just ask me anything!';

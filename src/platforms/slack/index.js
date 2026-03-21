@@ -32,8 +32,36 @@ async function getUserName(client, userId) {
 
 const ADMIN_USERS = process.env.ADMIN_USERS?.split(',').map((u) => u.trim()) ?? [];
 
-function makeCtx({ text, userId, workspaceId, say, channelHistory = [] }) {
-  return { text, userId, workspaceId, platform: 'slack', isAdmin: ADMIN_USERS.includes(userId), reply: say, channelHistory };
+function makeCtx({ text, userId, workspaceId, say, client = null, channelId = null, channelHistory = [] }) {
+  let statusTs = null;
+
+  // Posts a status message on first call, updates it in-place on subsequent calls
+  const onStatus = client && channelId ? async (statusText) => {
+    try {
+      if (!statusTs) {
+        const msg = await client.chat.postMessage({ channel: channelId, text: `_${statusText}_` });
+        statusTs = msg.ts;
+      } else {
+        await client.chat.update({ channel: channelId, ts: statusTs, text: `_${statusText}_` });
+      }
+    } catch (err) {
+      console.error('[onStatus]', err.message);
+    }
+  } : null;
+
+  // Final reply replaces the status message if one was posted
+  const reply = async (text) => {
+    if (statusTs && client && channelId) {
+      try {
+        await client.chat.update({ channel: channelId, ts: statusTs, text });
+        statusTs = null;
+        return;
+      } catch { /* fall through to say */ }
+    }
+    await say(text);
+  };
+
+  return { text, userId, workspaceId, platform: 'slack', isAdmin: ADMIN_USERS.includes(userId), reply, onStatus, channelHistory };
 }
 
 export function createSlackApp() {
@@ -59,7 +87,7 @@ export function createSlackApp() {
 
     if (message.channel_type === 'im') {
       // DM: full Q&A
-      await handleMessage(makeCtx({ text: message.text.trim(), userId: message.user, workspaceId: message.team, say }));
+      await handleMessage(makeCtx({ text: message.text.trim(), userId: message.user, workspaceId: message.team, say, client, channelId: message.channel }));
     } else {
       // Channel: passively absorb as knowledge so the bot follows the conversation
       const [channelName, userName] = await Promise.all([
@@ -94,7 +122,7 @@ export function createSlackApp() {
       console.error('[channel-context] Failed to fetch history:', err.message);
     }
 
-    await handleMessage(makeCtx({ text, userId: event.user, workspaceId: event.team, say, channelHistory }));
+    await handleMessage(makeCtx({ text, userId: event.user, workspaceId: event.team, say, client, channelId: event.channel, channelHistory }));
   });
 
   // Auto-index channel when bot is invited to it

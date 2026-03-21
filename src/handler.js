@@ -3,6 +3,7 @@ import { answerQuestion } from './ai/claude.js';
 import { hasSession, handleWizardStep, startWizard, cancelSession, listIntegrations } from './setup/wizard.js';
 import * as github from './integrations/github/index.js';
 import * as slackChannels from './integrations/slack-channels/index.js';
+import { decrypt } from './crypto.js';
 
 // Map integration name → module (add new integrations here)
 const INTEGRATIONS = { github, 'slack-channels': slackChannels };
@@ -141,14 +142,26 @@ export async function handleMessage(ctx) {
     return;
   }
 
-  // ── free-text question → Claude ───────────────────────────────────────────────
-  const [facts, history] = await Promise.all([
-    getRelevantFacts(workspaceId, text),
-    getRecentMessages(workspaceId, userId),
-  ]);
+  // ── free-text question → Claude (agentic) ────────────────────────────────────
+  const history = await getRecentMessages(workspaceId, userId);
+
+  const toolHandlers = {
+    search_knowledge: async ({ query }) => {
+      const facts = await getRelevantFacts(workspaceId, query);
+      return facts.length
+        ? facts.map((f) => `- ${f.content}`).join('\n')
+        : 'No relevant results found in knowledge base.';
+    },
+    github_get_commit: async ({ repo, sha }) => {
+      const integration = await getIntegration(workspaceId, 'github');
+      if (!integration) return 'GitHub integration not connected.';
+      const token = decrypt(integration.token_enc);
+      return github.getCommitDetails(repo, sha, token);
+    },
+  };
 
   await saveMessage(workspaceId, userId, 'user', text);
-  const answer = await answerQuestion(text, facts, history, channelHistory);
+  const answer = await answerQuestion(text, history, channelHistory, { onStatus: ctx.onStatus, toolHandlers });
   await saveMessage(workspaceId, userId, 'assistant', answer);
   await reply(answer);
 }

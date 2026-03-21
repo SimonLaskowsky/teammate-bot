@@ -10,6 +10,24 @@ function headers(token, accept = 'application/vnd.github.v3.json') {
   return { Authorization: `Bearer ${token}`, Accept: accept };
 }
 
+export async function getCommitDetails(repo, sha, token) {
+  const res = await fetch(`${BASE}/repos/${repo}/commits/${sha}`, { headers: headers(token) });
+  if (!res.ok) return `Could not fetch commit ${sha} from ${repo}: HTTP ${res.status}`;
+  const data = await res.json();
+  const files = (data.files ?? [])
+    .slice(0, 20)
+    .map((f) => `  ${f.status}: ${f.filename} (+${f.additions}/-${f.deletions})`)
+    .join('\n');
+  return [
+    `Commit: ${data.sha}`,
+    `Author: ${data.commit.author.name}`,
+    `Date: ${data.commit.author.date.slice(0, 10)}`,
+    `Message: ${data.commit.message}`,
+    `Stats: +${data.stats?.additions ?? 0} / -${data.stats?.deletions ?? 0} lines`,
+    files ? `Files changed:\n${files}` : 'No file changes',
+  ].join('\n');
+}
+
 export async function validate(token) {
   const res = await fetch(`${BASE}/user/repos?per_page=1`, { headers: headers(token) });
   return res.ok;

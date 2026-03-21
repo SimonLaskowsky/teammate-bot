@@ -36,6 +36,17 @@ export async function upsertKnowledge({ workspaceId, content, source, sourceId, 
   if (error) throw error;
 }
 
+export async function getManualFacts(workspaceId) {
+  const { data, error } = await supabase
+    .from('knowledge')
+    .select('content')
+    .eq('workspace_id', workspaceId)
+    .eq('source', 'manual')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => r.content);
+}
+
 export async function getAllFacts(workspaceId) {
   const { data, error } = await supabase
     .from('knowledge')

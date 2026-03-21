@@ -1,4 +1,4 @@
-import { addKnowledge, getAllFacts, getRelevantFacts, ensureWorkspace, getIntegration, removeIntegration, saveMessage, getRecentMessages } from './knowledge/store.js';
+import { addKnowledge, getAllFacts, getManualFacts, getRelevantFacts, ensureWorkspace, getIntegration, removeIntegration, saveMessage, getRecentMessages } from './knowledge/store.js';
 import { answerQuestion } from './ai/claude.js';
 import { hasSession, handleWizardStep, startWizard, cancelSession, listIntegrations } from './setup/wizard.js';
 import * as github from './integrations/github/index.js';
@@ -162,15 +162,25 @@ export async function handleMessage(ctx) {
 
   // ── info ─────────────────────────────────────────────────────────────────────
   if (/^\/info$|^info$/i.test(text)) {
+    const manualFacts = await getManualFacts(workspaceId);
+    const rulesSection = manualFacts.length
+      ? ':warning: *Rules & Norms*\n' + manualFacts.map((f) => `- ${f}`).join('\n')
+      : '';
+
     const answer = await answerQuestion(
-      'Generate a dense team overview. Search the knowledge base using multiple different queries to gather facts. ' +
-      'CRITICAL: only state facts that you actually found in search results — do not invent or infer anything not explicitly in the knowledge base. If a section has no real data, skip it. ' +
-      'Output sections in this order (use *Section Name* as headers, bullet lists, no tables, no ---): ' +
-      '*Team Rules & Norms* — only rules/processes explicitly stated in the knowledge base. ' +
-      '*Active Work* — ClickUp tasks (with status/assignee), recent commits grouped by repo. ' +
-      '*Tech Stack* — languages and frameworks found across repos. ' +
-      '*Projects* — one bullet per repo: name + one-line description of what it does. ' +
-      'Dense and specific. No filler. No preamble.',
+      'Generate a compact team overview using the knowledge base. ' +
+      'CRITICAL: only include facts from search results — never invent or infer anything. Skip sections with no real data.\n\n' +
+      (rulesSection
+        ? `The Rules & Norms section is already written below — do NOT add to it or invent more rules:\n${rulesSection}\n\n`
+        : 'There are no team rules in the knowledge base yet — skip the Rules section entirely.\n\n') +
+      'Search for and write these remaining sections in Slack format (emoji + *bold* header, bullet list):\n\n' +
+      ':hammer_and_wrench: *Tech Stack*\n' +
+      '- Languages on one line, key frameworks/tools on next line. Tight.\n\n' +
+      ':rocket: *Active Work*\n' +
+      '- ClickUp tasks that are "in progress" or high priority only. Skip "Get Started with ClickUp" onboarding tasks. Format: task name — status — assignee\n\n' +
+      ':file_folder: *Key Projects*\n' +
+      '- Real projects only (skip tutorials, mini-projects, old recruitment tasks). One bullet: *repo-name* — one sentence what it does.\n\n' +
+      'Start your response with the Rules section if it exists, then the rest. No commits. No time entries. No preamble.',
       [], [], { onStatus: ctx.onStatus, toolHandlers }
     );
     await reply(answer);

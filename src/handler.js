@@ -161,6 +161,14 @@ export async function handleMessage(ctx) {
       const token = decrypt(integration.token_enc);
       return github.getCommitDetails(repo, sha, token);
     },
+    clickup_get_time_entries: async ({ assignee_name, start_date, end_date }) => {
+      const integration = await getIntegration(workspaceId, 'clickup');
+      if (!integration) return 'ClickUp integration not connected.';
+      const token = decrypt(integration.token_enc);
+      const teamId = integration.config.workspaces?.[0]?.id;
+      if (!teamId) return 'No ClickUp workspace found in integration config.';
+      return clickup.getTimeEntries(teamId, token, { assigneeName: assignee_name, startDate: start_date, endDate: end_date });
+    },
   };
 
   await saveMessage(workspaceId, userId, 'user', text);

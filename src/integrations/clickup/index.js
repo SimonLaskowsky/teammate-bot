@@ -54,6 +54,66 @@ async function getSpaceLists(spaceId, token) {
   return lists;
 }
 
+export async function getTimeEntries(teamId, token, { assigneeName, startDate, endDate } = {}) {
+  // Resolve assignee name → user ID
+  let assigneeId;
+  if (assigneeName) {
+    const membersData = await get(`/team/${teamId}/member`, token);
+    const members = membersData?.members ?? membersData?.teams?.[0]?.members ?? [];
+    const match = members.find((m) => {
+      const name = (m.user?.username ?? m.user?.email ?? '').toLowerCase();
+      return name.includes(assigneeName.toLowerCase());
+    });
+    if (!match) return `Could not find a ClickUp member matching "${assigneeName}".`;
+    assigneeId = match.user.id;
+  }
+
+  // Default to last 30 days if no dates provided
+  const end = endDate ? new Date(endDate) : new Date();
+  const start = startDate ? new Date(startDate) : new Date(end - 30 * 24 * 60 * 60 * 1000);
+
+  const params = new URLSearchParams({
+    start_date: start.getTime().toString(),
+    end_date: end.getTime().toString(),
+    ...(assigneeId ? { assignee: assigneeId } : {}),
+  });
+
+  const data = await get(`/team/${teamId}/time_entries?${params}`, token);
+  const entries = data?.data ?? [];
+
+  if (entries.length === 0) return 'No time entries found for that filter.';
+
+  // Group by task and sum durations
+  const byTask = new Map();
+  for (const entry of entries) {
+    const taskName = entry.task?.name ?? 'No task';
+    const taskId = entry.task?.id ?? 'none';
+    const key = taskId;
+    if (!byTask.has(key)) byTask.set(key, { name: taskName, ms: 0, user: entry.user?.username });
+    byTask.get(key).ms += parseInt(entry.duration ?? 0);
+  }
+
+  const totalMs = [...byTask.values()].reduce((sum, t) => sum + t.ms, 0);
+
+  const lines = [...byTask.values()]
+    .sort((a, b) => b.ms - a.ms)
+    .map((t) => `- ${t.name}: ${formatDuration(t.ms)}`);
+
+  return [
+    assigneeName ? `Time tracked by ${assigneeName}:` : 'Time entries:',
+    ...lines,
+    `\nTotal: ${formatDuration(totalMs)}`,
+    `Period: ${start.toISOString().slice(0, 10)} → ${end.toISOString().slice(0, 10)}`,
+  ].join('\n');
+}
+
+function formatDuration(ms) {
+  const totalMinutes = Math.round(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
 export async function sync(workspaceId, integration) {
   const token = decrypt(integration.token_enc);
   const workspaces = integration.config.workspaces ?? [];

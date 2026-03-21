@@ -37,11 +37,24 @@ const TOOLS = [
       required: ['repo', 'sha'],
     },
   },
+  {
+    name: 'clickup_get_time_entries',
+    description: 'Fetch time tracked in ClickUp. Can filter by person name and/or date range.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        assignee_name: { type: 'string', description: 'Name of the person to filter by (optional)' },
+        start_date: { type: 'string', description: 'Start date YYYY-MM-DD (optional, defaults to 30 days ago)' },
+        end_date: { type: 'string', description: 'End date YYYY-MM-DD (optional, defaults to today)' },
+      },
+    },
+  },
 ];
 
 const STATUS_LABELS = {
   search_knowledge: (input) => `Searching knowledge base for _"${input.query}"_...`,
   github_get_commit: (input) => `Fetching commit \`${input.sha}\` from GitHub...`,
+  clickup_get_time_entries: (input) => `Fetching time entries from ClickUp${input.assignee_name ? ` for ${input.assignee_name}` : ''}...`,
 };
 
 export async function answerQuestion(question, history = [], channelHistory = [], { onStatus, toolHandlers = {} } = {}) {

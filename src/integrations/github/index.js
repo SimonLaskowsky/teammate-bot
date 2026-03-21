@@ -6,7 +6,7 @@ export const name = 'github';
 export const displayName = 'GitHub';
 export const tokenPrompt =
   'Paste your Personal Access Token.\n' +
-  '_(Generate one at https://github.com/settings/tokens — needs `repo` read scope)_';
+  '_(Generate one at https://github.com/settings/tokens — needs `repo` and `admin:repo_hook` scopes)_';
 
 const BASE = 'https://api.github.com';
 

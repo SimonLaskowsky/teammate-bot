@@ -94,6 +94,9 @@ async function saveAndSync(ctx, session, integration, selectedItems) {
   const tokenEnc = encrypt(session.token);
   let config = integration.buildConfig ? integration.buildConfig(selectedItems) : {};
 
+  // Save first so the integration exists in DB when GitHub pings the webhook URL
+  await saveIntegration(ctx.workspaceId, session.type, tokenEnc, config);
+
   // Register webhooks for real-time updates if PUBLIC_URL is configured
   if (process.env.PUBLIC_URL && integration.registerWebhooks) {
     const webhookConfig = await integration
@@ -101,11 +104,11 @@ async function saveAndSync(ctx, session, integration, selectedItems) {
       .catch((err) => { console.error('[wizard] Webhook registration failed:', err.message); return null; });
     if (webhookConfig) {
       config = { ...config, ...webhookConfig };
+      // Update config with webhook secret
+      await saveIntegration(ctx.workspaceId, session.type, tokenEnc, config);
       console.log(`[wizard] Registered webhooks for ${integration.displayName}`);
     }
   }
-
-  await saveIntegration(ctx.workspaceId, session.type, tokenEnc, config);
   sessions.delete(ctx.userId);
 
   await ctx.reply(`Got it! Syncing *${integration.displayName}*... give me a moment.`);

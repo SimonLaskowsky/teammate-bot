@@ -9,6 +9,10 @@ import {
 
 export async function handleGithubWebhook(req, res) {
   const event = req.headers['x-github-event'];
+
+  // GitHub sends a ping on registration to verify the URL is reachable
+  if (event === 'ping') return res.sendStatus(200);
+
   const signature = req.headers['x-hub-signature-256'];
   const payload = req.body;
   const repo = payload.repository?.full_name;

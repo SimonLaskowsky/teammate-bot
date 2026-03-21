@@ -42,6 +42,17 @@ export async function handleMessage(ctx) {
   }
 
 
+  // ── debug search: ───────────────────────────────────────────────────────────
+  const debugSearchMatch = text.match(/^debug search:\s*(.+)$/i);
+  if (debugSearchMatch) {
+    if (!isAdmin) { await reply('Admin only.'); return; }
+    const query = debugSearchMatch[1].trim();
+    const facts = await getRelevantFacts(workspaceId, query);
+    const lines = facts.slice(0, 10).map((f, i) => `${i + 1}. [${f.source ?? 'manual'}] ${f.content.slice(0, 120)}`).join('\n');
+    await reply(`*Top ${Math.min(facts.length, 10)} results for "${query}":*\n\n${lines}`);
+    return;
+  }
+
   // ── add this: ───────────────────────────────────────────────────────────────
   if (/^add this:/i.test(text)) {
     if (!isAdmin) { await reply('Sorry, only admins can add to the knowledge base.'); return; }
@@ -174,6 +185,8 @@ export async function handleMessage(ctx) {
         ? `The Rules & Norms section is already written below — do NOT add to it or invent more rules:\n${rulesSection}\n\n`
         : 'There are no team rules in the knowledge base yet — skip the Rules section entirely.\n\n') +
       'Search for and write these remaining sections in Slack format (emoji + *bold* header, bullet list):\n\n' +
+      ':busts_in_silhouette: *Team*\n' +
+      '- Search for people, names, roles, who does what. Only include if found. One bullet per person: name — role/what they do.\n\n' +
       ':hammer_and_wrench: *Tech Stack*\n' +
       '- Languages on one line, key frameworks/tools on next line. Tight.\n\n' +
       ':rocket: *Active Work*\n' +

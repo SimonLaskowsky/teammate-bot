@@ -163,12 +163,14 @@ export async function handleMessage(ctx) {
   // ── info ─────────────────────────────────────────────────────────────────────
   if (/^\/info$|^info$/i.test(text)) {
     const answer = await answerQuestion(
-      'Generate a structured company overview for a new hire. Search the knowledge base thoroughly using multiple queries to cover: ' +
-      '(1) what technologies, languages and frameworks the team uses, ' +
-      '(2) what the team is currently working on (active projects, open PRs, recent commits), ' +
-      '(3) important team rules or norms (e.g. deployment rules, processes), ' +
-      '(4) team members and their roles if known. ' +
-      'Format as clear sections with headers. Be specific — include real project names, tech names, and actual facts from the knowledge base.',
+      'Generate a dense, fact-only team overview. Search the knowledge base with multiple queries. ' +
+      'STRICT RULE: only include facts explicitly found in the knowledge base — never infer, assume, or invent anything. If something is not in the knowledge base, skip it entirely. ' +
+      'Structure the output in this order: ' +
+      '1. Team Rules & Norms — explicit rules found (deployment rules, processes, workflows). Only include if explicitly stated in knowledge base. ' +
+      '2. Active Work — current ClickUp tasks, open PRs, recent commits. Be specific (task names, PR titles, repo names). ' +
+      '3. Tech Stack — languages, frameworks, tools actually found across projects. ' +
+      '4. Projects — brief list of active/recent repos and what they do. ' +
+      'Keep each section tight. No filler sentences, no "based on the knowledge base" preamble — just the facts.',
       [], [], { onStatus: ctx.onStatus, toolHandlers }
     );
     await reply(answer);

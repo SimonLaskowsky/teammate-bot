@@ -135,7 +135,7 @@ export async function registerWebhooks(workspaceId, token, config) {
     headers: headers(token),
     body: JSON.stringify({
       endpoint: url,
-      events: ['taskCreated', 'taskUpdated', 'taskDeleted', 'taskStatusUpdated', 'taskAssigneeUpdated'],
+      events: ['taskCreated', 'taskUpdated', 'taskDeleted', 'taskStatusUpdated', 'taskAssigneeUpdated', 'taskCommentPosted', 'taskCommentUpdated'],
     }),
   });
   if (!res.ok) { console.error('[clickup] Webhook registration failed:', (await res.json()).err); return null; }
@@ -146,7 +146,10 @@ export async function registerWebhooks(workspaceId, token, config) {
 // ── Incremental webhook sync ──────────────────────────────────────────────────
 
 export async function syncSingleTask(workspaceId, taskId, token) {
-  const task = await get(`/task/${taskId}`, token);
+  const [task, commentsData] = await Promise.all([
+    get(`/task/${taskId}`, token),
+    get(`/task/${taskId}/comment`, token),
+  ]);
   if (!task) return;
   const assignees = task.assignees?.map((a) => a.username).join(', ') || 'unassigned';
   const due = task.due_date ? new Date(parseInt(task.due_date)).toISOString().slice(0, 10) : 'no due date';
@@ -162,6 +165,18 @@ export async function syncSingleTask(workspaceId, taskId, token) {
     sourceId: `clickup:task:${task.id}`,
     addedBy: 'clickup-webhook',
   });
+
+  const comments = (commentsData?.comments ?? []).slice(0, 10);
+  if (comments.length) {
+    const text = comments.map((c) => `${c.user?.username ?? 'unknown'}: ${(c.comment_text ?? '').slice(0, 300)}`).join('\n---\n');
+    await upsertKnowledge({
+      workspaceId,
+      content: `[ClickUp comments] ${task.name}\n${text}`,
+      source: 'clickup',
+      sourceId: `clickup:task:${task.id}:comments`,
+      addedBy: 'clickup-webhook',
+    });
+  }
 }
 
 export async function deleteTask(workspaceId, taskId) {
@@ -211,6 +226,20 @@ export async function sync(workspaceId, integration) {
                 addedBy: 'clickup-integration',
               });
               synced++;
+
+              const commentsData = await get(`/task/${task.id}/comment`, token);
+              const comments = (commentsData?.comments ?? []).slice(0, 10);
+              if (comments.length) {
+                const text = comments.map((c) => `${c.user?.username ?? 'unknown'}: ${(c.comment_text ?? '').slice(0, 300)}`).join('\n---\n');
+                await upsertKnowledge({
+                  workspaceId,
+                  content: `[ClickUp comments] ${task.name}\n${text}`,
+                  source: 'clickup',
+                  sourceId: `clickup:task:${task.id}:comments`,
+                  addedBy: 'clickup-integration',
+                });
+                synced++;
+              }
             }
 
             if (tasks.length < 100) break;

@@ -2,7 +2,7 @@ import { getAllActiveIntegrations } from '../knowledge/store.js';
 import { decrypt } from '../crypto.js';
 import { syncSingleTask, deleteTask } from '../integrations/clickup/index.js';
 
-const UPSERT_EVENTS = ['taskCreated', 'taskUpdated', 'taskStatusUpdated', 'taskAssigneeUpdated'];
+const UPSERT_EVENTS = ['taskCreated', 'taskUpdated', 'taskStatusUpdated', 'taskAssigneeUpdated', 'taskCommentPosted', 'taskCommentUpdated'];
 
 export async function handleClickupWebhook(req, res) {
   const { workspaceId, token: webhookToken } = req.params;

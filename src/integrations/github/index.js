@@ -93,7 +93,7 @@ export async function registerWebhooks(workspaceId, token, config) {
       body: JSON.stringify({
         name: 'web',
         active: true,
-        events: ['push', 'pull_request', 'issues'],
+        events: ['push', 'pull_request', 'issues', 'issue_comment'],
         config: { url, content_type: 'json', secret: webhookSecret, insecure_ssl: '0' },
       }),
     });
@@ -245,6 +245,19 @@ export async function sync(workspaceId, integration) {
             addedBy: 'github-integration',
           });
           synced++;
+
+          const comments = await fetchJson(`${BASE}/repos/${repo}/issues/${issue.number}/comments?per_page=10`, token);
+          if (comments?.length) {
+            const text = comments.map((c) => `${c.user.login}: ${c.body.slice(0, 300)}`).join('\n---\n');
+            await upsertKnowledge({
+              workspaceId,
+              content: `[${repo} issue #${issue.number} comments]\n${text}`,
+              source: 'github',
+              sourceId: `github:${repo}:issue:${issue.number}:comments`,
+              addedBy: 'github-integration',
+            });
+            synced++;
+          }
         }
       }
 
@@ -283,6 +296,19 @@ export async function sync(workspaceId, integration) {
             addedBy: 'github-integration',
           });
           synced++;
+
+          const comments = await fetchJson(`${BASE}/repos/${repo}/issues/${pr.number}/comments?per_page=10`, token);
+          if (comments?.length) {
+            const text = comments.map((c) => `${c.user.login}: ${c.body.slice(0, 300)}`).join('\n---\n');
+            await upsertKnowledge({
+              workspaceId,
+              content: `[${repo} PR #${pr.number} comments]\n${text}`,
+              source: 'github',
+              sourceId: `github:${repo}:pr:${pr.number}:comments`,
+              addedBy: 'github-integration',
+            });
+            synced++;
+          }
         }
       }
     } catch (err) {

@@ -70,6 +70,19 @@ export async function getKnowledgeCounts(workspaceId) {
   return counts;
 }
 
+export async function removeManualFact(workspaceId, query) {
+  const { data, error } = await supabase
+    .from('knowledge')
+    .select('id, content')
+    .eq('workspace_id', workspaceId)
+    .eq('source', 'manual')
+    .ilike('content', `%${query}%`);
+  if (error) throw error;
+  if (!data?.length) return 0;
+  await supabase.from('knowledge').delete().in('id', data.map((r) => r.id));
+  return data.length;
+}
+
 export async function deleteKnowledge(workspaceId, sourceId) {
   const { error } = await supabase
     .from('knowledge')

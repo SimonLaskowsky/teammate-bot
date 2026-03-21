@@ -67,9 +67,29 @@ async function resolveUsers(userIds) {
   return map;
 }
 
+async function discoverMemberChannels() {
+  const res = await fetch(
+    `${SLACK_API}/conversations.list?limit=200&exclude_archived=true&types=public_channel`,
+    { headers: slackHeaders() }
+  );
+  const data = await res.json();
+  return (data.channels ?? []).filter((c) => c.is_member).map((c) => ({ id: c.id, name: c.name }));
+}
+
 // Returns { synced, failed }
 export async function sync(workspaceId, integration) {
-  const channels = integration.config.channels ?? [];
+  const configured = integration.config.channels ?? [];
+
+  // Auto-discover any channels the bot is a member of but not yet in config
+  const discovered = await discoverMemberChannels().catch(() => []);
+  const knownIds = new Set(configured.map((c) => c.id));
+  const newChannels = discovered.filter((c) => !knownIds.has(c.id));
+  const channels = [...configured, ...newChannels];
+
+  if (newChannels.length > 0) {
+    await saveIntegration(workspaceId, 'slack-channels', integration.token_enc ?? '', { channels });
+    console.log(`[slack-channels] Auto-discovered ${newChannels.length} new channel(s): ${newChannels.map((c) => `#${c.name}`).join(', ')}`);
+  }
   let synced = 0;
   const failed = [];
 

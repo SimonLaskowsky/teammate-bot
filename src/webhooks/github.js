@@ -1,4 +1,4 @@
-import { getAllActiveIntegrations, deleteKnowledge } from '../knowledge/store.js';
+import { getAllActiveIntegrations, deleteKnowledge, upsertKnowledge } from '../knowledge/store.js';
 import { decrypt } from '../crypto.js';
 import {
   verifyWebhookSignature,
@@ -59,8 +59,26 @@ export async function handleGithubWebhook(req, res) {
         await upsertIssueEntry(workspaceId, repo, issue);
       } else if (['closed', 'deleted'].includes(action)) {
         await deleteKnowledge(workspaceId, `github:${repo}:issue:${issue.number}`);
+        await deleteKnowledge(workspaceId, `github:${repo}:issue:${issue.number}:comments`);
       }
       console.log(`[webhook:github] Issue #${issue.number} ${action} in ${repo}`);
+    } else if (event === 'issue_comment') {
+      const { action, issue, comment } = payload;
+      const isPR = !!issue.pull_request;
+      const type = isPR ? 'PR' : 'issue';
+      const sourceId = isPR
+        ? `github:${repo}:pr:${issue.number}:comments`
+        : `github:${repo}:issue:${issue.number}:comments`;
+      if (['created', 'edited'].includes(action)) {
+        await upsertKnowledge({
+          workspaceId,
+          content: `[${repo} ${type} #${issue.number} comments]\n${comment.user.login}: ${comment.body.slice(0, 300)}`,
+          source: 'github',
+          sourceId,
+          addedBy: 'github-webhook',
+        });
+      }
+      console.log(`[webhook:github] Comment ${action} on ${type} #${issue.number} in ${repo}`);
     }
   } catch (err) {
     console.error('[webhook:github] Error:', err.message);

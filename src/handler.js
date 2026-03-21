@@ -1,4 +1,4 @@
-import { addKnowledge, getAllFacts, getManualFacts, getRelevantFacts, ensureWorkspace, getIntegration, removeIntegration, saveMessage, getRecentMessages } from './knowledge/store.js';
+import { addKnowledge, getAllFacts, getManualFacts, removeManualFact, getRelevantFacts, ensureWorkspace, getIntegration, removeIntegration, saveMessage, getRecentMessages } from './knowledge/store.js';
 import { answerQuestion } from './ai/claude.js';
 import { hasSession, handleWizardStep, startWizard, cancelSession, listIntegrations } from './setup/wizard.js';
 import * as github from './integrations/github/index.js';
@@ -13,6 +13,7 @@ const HELP_TEXT =
   '*Teammate Bot — commands:*\n\n' +
   '`info` — show knowledge base summary\n' +
   '`add this: <fact>` — add a fact _(admin)_\n' +
+  '`remove this: <text>` — remove matching manual facts _(admin)_\n' +
   '`index channel #channel-name` — index a Slack channel _(admin)_\n' +
   '`sync slack` — re-sync all indexed channels _(admin)_\n' +
   '`connect github` — connect GitHub _(admin)_\n' +
@@ -60,6 +61,17 @@ export async function handleMessage(ctx) {
     if (!content) { await reply('Please provide content after "add this:"'); return; }
     await addKnowledge({ workspaceId, content, addedBy: userId });
     await reply(`Got it! Added to the team knowledge base:\n_"${content}"_`);
+    return;
+  }
+
+  // ── remove this: ─────────────────────────────────────────────────────────────
+  if (/^remove this:/i.test(text)) {
+    if (!isAdmin) { await reply('Sorry, only admins can remove facts.'); return; }
+    const query = text.replace(/^remove this:/i, '').trim();
+    if (!query) { await reply('Please provide text to match after "remove this:"'); return; }
+    const count = await removeManualFact(workspaceId, query);
+    if (count === 0) await reply(`No manual facts found matching _"${query}"_.`);
+    else await reply(`Removed *${count}* fact(s) matching _"${query}"_.`);
     return;
   }
 

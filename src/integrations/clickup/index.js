@@ -55,16 +55,22 @@ async function getSpaceLists(spaceId, token) {
 }
 
 export async function getTimeEntries(teamId, token, { assigneeName, startDate, endDate } = {}) {
-  // Resolve assignee name → user ID
+  // Resolve assignee name → user ID using /team (same endpoint used during connect)
   let assigneeId;
   if (assigneeName) {
-    const membersData = await get(`/team/${teamId}/member`, token);
-    const members = membersData?.members ?? membersData?.teams?.[0]?.members ?? [];
+    const teamsData = await get('/team', token);
+    const workspace = teamsData?.teams?.find((t) => t.id === teamId);
+    const members = workspace?.members ?? [];
+    const needle = assigneeName.toLowerCase();
     const match = members.find((m) => {
-      const name = (m.user?.username ?? m.user?.email ?? '').toLowerCase();
-      return name.includes(assigneeName.toLowerCase());
+      const username = (m.user?.username ?? '').toLowerCase();
+      const email = (m.user?.email ?? '').toLowerCase();
+      return username.includes(needle) || email.split('@')[0].includes(needle);
     });
-    if (!match) return `Could not find a ClickUp member matching "${assigneeName}".`;
+    if (!match) {
+      const names = members.map((m) => m.user?.username ?? m.user?.email).join(', ');
+      return `Could not find "${assigneeName}" in ClickUp. Known members: ${names}`;
+    }
     assigneeId = match.user.id;
   }
 

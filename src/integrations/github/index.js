@@ -169,7 +169,7 @@ export async function sync(workspaceId, integration) {
       );
       if (commits) {
         const summary = commits
-          .map((c) => `- ${c.commit.message.split('\n')[0]} (${c.commit.author.name}, ${c.commit.author.date.slice(0, 10)})`)
+          .map((c) => `- ${c.sha.slice(0, 7)}: ${c.commit.message.split('\n')[0]} (${c.commit.author.name}, ${c.commit.author.date.slice(0, 10)})`)
           .join('\n');
         await upsertKnowledge({
           workspaceId,

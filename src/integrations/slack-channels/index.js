@@ -4,6 +4,12 @@ export const name = 'slack-channels';
 export const displayName = 'Slack Channels';
 export const needsToken = false;
 
+export function configSummary(config) {
+  const channels = config.channels ?? [];
+  if (channels.length === 0) return 'no channels indexed';
+  return channels.map((c) => `#${c.name}`).join(', ');
+}
+
 const SLACK_API = 'https://slack.com/api';
 
 function slackHeaders() {

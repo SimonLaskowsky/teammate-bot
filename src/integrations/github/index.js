@@ -14,6 +14,13 @@ function headers(token, accept = 'application/vnd.github.v3.json') {
   return { Authorization: `Bearer ${token}`, Accept: accept };
 }
 
+export function configSummary(config) {
+  const repos = config.repos ?? [];
+  if (repos.length === 0) return 'no repos';
+  const preview = repos.slice(0, 3).join(', ');
+  return repos.length > 3 ? `${preview} +${repos.length - 3} more` : preview;
+}
+
 export async function getCommitDetails(repo, sha, token) {
   const res = await fetch(`${BASE}/repos/${repo}/commits/${sha}`, { headers: headers(token) });
   if (!res.ok) return `Could not fetch commit ${sha} from ${repo}: HTTP ${res.status}`;

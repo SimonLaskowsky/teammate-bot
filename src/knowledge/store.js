@@ -117,6 +117,15 @@ export async function getActiveIntegrations(workspaceId) {
   return data ?? [];
 }
 
+export async function getAllActiveIntegrations() {
+  const { data, error } = await supabase
+    .from('integrations')
+    .select('*')
+    .eq('active', true);
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function removeIntegration(workspaceId, type) {
   const { error } = await supabase
     .from('integrations')

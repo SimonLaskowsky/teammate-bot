@@ -89,7 +89,7 @@ export async function registerWebhooks(workspaceId, token, config) {
         config: { url, content_type: 'json', secret: webhookSecret, insecure_ssl: '0' },
       }),
     });
-    if (!res.ok) console.error(`[github] Webhook registration failed for ${repo}:`, (await res.json()).message);
+    if (!res.ok) console.error(`[github] Webhook registration failed for ${repo}:`, JSON.stringify(await res.json()));
   }
   return { webhookSecret };
 }

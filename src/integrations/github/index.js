@@ -22,6 +22,25 @@ export async function listRepos(token) {
   return repos.map((r) => r.full_name);
 }
 
+// Split markdown into sections by heading so each section gets its own embedding
+function splitMarkdown(text, maxLen = 1500) {
+  const sections = text.split(/\n(?=#{1,3} )/);
+  return sections
+    .map((s) => s.trim())
+    .filter((s) => s.length > 50)
+    .map((s) => s.slice(0, maxLen));
+}
+
+async function fetchText(url, token) {
+  const res = await fetch(url, { headers: headers(token, 'application/vnd.github.v3.raw') });
+  return res.ok ? res.text() : null;
+}
+
+async function fetchJson(url, token) {
+  const res = await fetch(url, { headers: headers(token) });
+  return res.ok ? res.json() : null;
+}
+
 // Returns { synced: number, failed: string[] }
 export async function sync(workspaceId, integration) {
   const token = decrypt(integration.token_enc);
@@ -31,39 +50,120 @@ export async function sync(workspaceId, integration) {
 
   for (const repo of repos) {
     try {
-      // Get repo metadata — description, language, topics
-      const metaRes = await fetch(`${BASE}/repos/${repo}`, { headers: headers(token) });
-      if (!metaRes.ok) {
-        failed.push(`${repo} (${metaRes.status})`);
-        continue;
-      }
-      const meta = await metaRes.json();
+      const meta = await fetchJson(`${BASE}/repos/${repo}`, token);
+      if (!meta) { failed.push(`${repo} (not found)`); continue; }
 
-      // Try README — fall back gracefully if missing
-      let readmeText = '';
-      const readmeRes = await fetch(`${BASE}/repos/${repo}/readme`, {
-        headers: headers(token, 'application/vnd.github.v3.raw'),
-      });
-      if (readmeRes.ok) {
-        readmeText = (await readmeRes.text()).slice(0, 2500);
-      }
-
-      const parts = [`GitHub repo: ${repo}`];
-      if (meta.description) parts.push(`Description: ${meta.description}`);
-      if (meta.language) parts.push(`Primary language: ${meta.language}`);
-      if (meta.topics?.length) parts.push(`Topics: ${meta.topics.join(', ')}`);
-      if (readmeText) parts.push(`README:\n${readmeText}`);
+      // ── Repo overview ────────────────────────────────────────────────────────
+      const overviewParts = [`GitHub repo: ${repo}`];
+      if (meta.description) overviewParts.push(`Description: ${meta.description}`);
+      if (meta.language) overviewParts.push(`Primary language: ${meta.language}`);
+      if (meta.topics?.length) overviewParts.push(`Topics: ${meta.topics.join(', ')}`);
+      if (meta.default_branch) overviewParts.push(`Default branch: ${meta.default_branch}`);
 
       await upsertKnowledge({
         workspaceId,
-        content: parts.join('\n'),
+        content: overviewParts.join('\n'),
         source: 'github',
-        sourceId: `github:${repo}`,
+        sourceId: `github:${repo}:meta`,
         addedBy: 'github-integration',
       });
       synced++;
+
+      // ── README ───────────────────────────────────────────────────────────────
+      const readme = await fetchText(`${BASE}/repos/${repo}/readme`, token);
+      if (readme) {
+        const sections = splitMarkdown(readme);
+        for (let i = 0; i < sections.length; i++) {
+          await upsertKnowledge({
+            workspaceId,
+            content: `[${repo} README] ${sections[i]}`,
+            source: 'github',
+            sourceId: `github:${repo}:readme:${i}`,
+            addedBy: 'github-integration',
+          });
+          synced++;
+        }
+      }
+
+      // ── package.json scripts ─────────────────────────────────────────────────
+      const pkgRaw = await fetchText(`${BASE}/repos/${repo}/contents/package.json`, token);
+      if (pkgRaw) {
+        try {
+          const pkg = JSON.parse(pkgRaw);
+          if (pkg.scripts && Object.keys(pkg.scripts).length > 0) {
+            const scripts = Object.entries(pkg.scripts)
+              .map(([k, v]) => `  ${k}: ${v}`)
+              .join('\n');
+            await upsertKnowledge({
+              workspaceId,
+              content: `[${repo} package.json scripts]\n${scripts}`,
+              source: 'github',
+              sourceId: `github:${repo}:package-scripts`,
+              addedBy: 'github-integration',
+            });
+            synced++;
+          }
+        } catch {
+          // invalid JSON, skip
+        }
+      }
+
+      // ── CONTRIBUTING.md ──────────────────────────────────────────────────────
+      const contributing = await fetchText(`${BASE}/repos/${repo}/contents/CONTRIBUTING.md`, token);
+      if (contributing) {
+        const sections = splitMarkdown(contributing);
+        for (let i = 0; i < sections.length; i++) {
+          await upsertKnowledge({
+            workspaceId,
+            content: `[${repo} CONTRIBUTING] ${sections[i]}`,
+            source: 'github',
+            sourceId: `github:${repo}:contributing:${i}`,
+            addedBy: 'github-integration',
+          });
+          synced++;
+        }
+      }
+
+      // ── Open issues ──────────────────────────────────────────────────────────
+      const issues = await fetchJson(
+        `${BASE}/repos/${repo}/issues?state=open&per_page=30&sort=updated`,
+        token
+      );
+      if (issues) {
+        for (const issue of issues.filter((i) => !i.pull_request)) {
+          const body = issue.body ? `\n${issue.body.slice(0, 500)}` : '';
+          const labels = issue.labels?.map((l) => l.name).join(', ');
+          await upsertKnowledge({
+            workspaceId,
+            content: `[${repo} issue #${issue.number}] ${issue.title}${labels ? ` (${labels})` : ''}${body}`,
+            source: 'github',
+            sourceId: `github:${repo}:issue:${issue.number}`,
+            addedBy: 'github-integration',
+          });
+          synced++;
+        }
+      }
+
+      // ── Open PRs ─────────────────────────────────────────────────────────────
+      const prs = await fetchJson(
+        `${BASE}/repos/${repo}/pulls?state=open&per_page=20&sort=updated`,
+        token
+      );
+      if (prs) {
+        for (const pr of prs) {
+          const body = pr.body ? `\n${pr.body.slice(0, 500)}` : '';
+          await upsertKnowledge({
+            workspaceId,
+            content: `[${repo} PR #${pr.number}] ${pr.title} (by ${pr.user.login}, into ${pr.base.ref})${body}`,
+            source: 'github',
+            sourceId: `github:${repo}:pr:${pr.number}`,
+            addedBy: 'github-integration',
+          });
+          synced++;
+        }
+      }
     } catch (err) {
-      console.error(`[github] Failed to sync ${repo}:`, err.message, err.stack);
+      console.error(`[github] Failed to sync ${repo}:`, err.message);
       failed.push(`${repo} (${err.message})`);
     }
   }

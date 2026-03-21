@@ -5,8 +5,9 @@ import 'dotenv/config';
 // We catch it here so Railway can restart cleanly instead of looping on crashes.
 process.on('uncaughtException', (err) => {
   if (err.message?.includes('server explicit disconnect')) {
-    console.warn('[warn] Slack sent a server explicit disconnect — restarting process.');
-    process.exit(1);
+    console.warn('[warn] Slack sent a server explicit disconnect — restarting in 10s.');
+    setTimeout(() => process.exit(1), 10_000);
+    return;
   }
   throw err;
 });

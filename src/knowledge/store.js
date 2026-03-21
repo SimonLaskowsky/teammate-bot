@@ -46,6 +46,19 @@ export async function getAllFacts(workspaceId) {
   return data ?? [];
 }
 
+export async function getKnowledgeCounts(workspaceId) {
+  const { data, error } = await supabase
+    .from('knowledge')
+    .select('source')
+    .eq('workspace_id', workspaceId);
+  if (error) throw error;
+  const counts = {};
+  for (const row of data ?? []) {
+    counts[row.source] = (counts[row.source] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export async function deleteKnowledge(workspaceId, sourceId) {
   const { error } = await supabase
     .from('knowledge')

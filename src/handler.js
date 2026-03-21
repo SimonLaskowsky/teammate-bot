@@ -11,7 +11,7 @@ const INTEGRATIONS = { github, clickup, 'slack-channels': slackChannels };
 
 const HELP_TEXT =
   '*Teammate Bot — commands:*\n\n' +
-  '`info` — show all team knowledge\n' +
+  '`info` — show knowledge base summary\n' +
   '`add this: <fact>` — add a fact _(admin)_\n' +
   '`index channel #channel-name` — index a Slack channel _(admin)_\n' +
   '`sync slack` — re-sync all indexed channels _(admin)_\n' +
@@ -41,17 +41,6 @@ export async function handleMessage(ctx) {
     return;
   }
 
-  // ── info ────────────────────────────────────────────────────────────────────
-  if (/^\/info$|^info$/i.test(text)) {
-    const facts = await getAllFacts(workspaceId);
-    if (facts.length === 0) {
-      await reply('No team knowledge yet. Admins can add facts by typing: `add this: <fact>`');
-      return;
-    }
-    const list = facts.map((f, i) => `${i + 1}. ${f.content}`).join('\n');
-    await reply(`*Team Knowledge Base:*\n\n${list}`);
-    return;
-  }
 
   // ── add this: ───────────────────────────────────────────────────────────────
   if (/^add this:/i.test(text)) {
@@ -170,6 +159,21 @@ export async function handleMessage(ctx) {
       return clickup.getTimeEntries(teamId, token, { assigneeName: assignee_name, startDate: start_date, endDate: end_date });
     },
   };
+
+  // ── info ─────────────────────────────────────────────────────────────────────
+  if (/^\/info$|^info$/i.test(text)) {
+    const answer = await answerQuestion(
+      'Generate a structured company overview for a new hire. Search the knowledge base thoroughly using multiple queries to cover: ' +
+      '(1) what technologies, languages and frameworks the team uses, ' +
+      '(2) what the team is currently working on (active projects, open PRs, recent commits), ' +
+      '(3) important team rules or norms (e.g. deployment rules, processes), ' +
+      '(4) team members and their roles if known. ' +
+      'Format as clear sections with headers. Be specific — include real project names, tech names, and actual facts from the knowledge base.',
+      [], [], { onStatus: ctx.onStatus, toolHandlers }
+    );
+    await reply(answer);
+    return;
+  }
 
   await saveMessage(workspaceId, userId, 'user', text);
   const answer = await answerQuestion(text, history, channelHistory, { onStatus: ctx.onStatus, toolHandlers });

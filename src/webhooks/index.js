@@ -21,5 +21,5 @@ export function startWebhookServer() {
 
   app.get('/health', (req, res) => res.send('ok'));
 
-  app.listen(PORT, () => console.log(`[webhooks] HTTP server listening on port ${PORT}`));
+  app.listen(PORT, '0.0.0.0', () => console.log(`[webhooks] HTTP server listening on port ${PORT}`));
 }

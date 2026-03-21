@@ -11,3 +11,4 @@ export async function embed(text) {
   if (!data.data) throw new Error(`Embedding failed: ${data.error?.message}`);
   return data.data[0].embedding;
 }
+

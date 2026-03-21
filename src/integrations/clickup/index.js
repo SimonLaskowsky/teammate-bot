@@ -128,7 +128,8 @@ export async function registerWebhooks(workspaceId, token, config) {
   const teamId = config.workspaces?.[0]?.id;
   if (!teamId) return null;
   const webhookToken = randomBytes(32).toString('hex');
-  const url = `${process.env.PUBLIC_URL}/webhooks/clickup/${workspaceId}/${webhookToken}`;
+  const baseUrl = process.env.PUBLIC_URL.startsWith('http') ? process.env.PUBLIC_URL : `https://${process.env.PUBLIC_URL}`;
+  const url = `${baseUrl}/webhooks/clickup/${workspaceId}/${webhookToken}`;
   const res = await fetch(`${BASE}/team/${teamId}/webhook`, {
     method: 'POST',
     headers: headers(token),

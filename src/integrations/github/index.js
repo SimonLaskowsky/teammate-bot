@@ -1,3 +1,4 @@
+import { randomBytes, createHmac } from 'crypto';
 import { decrypt } from '../../crypto.js';
 import { upsertKnowledge } from '../../knowledge/store.js';
 
@@ -69,6 +70,71 @@ async function fetchText(url, token) {
 async function fetchJson(url, token) {
   const res = await fetch(url, { headers: headers(token) });
   return res.ok ? res.json() : null;
+}
+
+// ── Webhook registration ──────────────────────────────────────────────────────
+
+export async function registerWebhooks(workspaceId, token, config) {
+  if (!process.env.PUBLIC_URL) return null;
+  const webhookSecret = randomBytes(32).toString('hex');
+  const url = `${process.env.PUBLIC_URL}/webhooks/github`;
+  for (const repo of config.repos ?? []) {
+    const res = await fetch(`${BASE}/repos/${repo}/hooks`, {
+      method: 'POST',
+      headers: headers(token),
+      body: JSON.stringify({
+        name: 'web',
+        active: true,
+        events: ['push', 'pull_request', 'issues'],
+        config: { url, content_type: 'json', secret: webhookSecret, insecure_ssl: '0' },
+      }),
+    });
+    if (!res.ok) console.error(`[github] Webhook registration failed for ${repo}:`, (await res.json()).message);
+  }
+  return { webhookSecret };
+}
+
+export function verifyWebhookSignature(rawBody, secret, signature) {
+  const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
+  return signature === expected;
+}
+
+// ── Incremental webhook sync helpers ─────────────────────────────────────────
+
+export async function syncRepoCommits(workspaceId, repo, token) {
+  const commits = await fetchJson(`${BASE}/repos/${repo}/commits?per_page=20`, token);
+  if (!commits) return;
+  const summary = commits
+    .map((c) => `- ${c.sha.slice(0, 7)}: ${c.commit.message.split('\n')[0]} (${c.commit.author.name}, ${c.commit.author.date.slice(0, 10)})`)
+    .join('\n');
+  await upsertKnowledge({
+    workspaceId,
+    content: `[${repo} recent commits]\n${summary}`,
+    source: 'github',
+    sourceId: `github:${repo}:commits`,
+    addedBy: 'github-webhook',
+  });
+}
+
+export async function upsertPREntry(workspaceId, repo, pr) {
+  await upsertKnowledge({
+    workspaceId,
+    content: `[${repo} PR #${pr.number}] ${pr.title} (by ${pr.user.login}, into ${pr.base.ref})${pr.body ? '\n' + pr.body.slice(0, 500) : ''}`,
+    source: 'github',
+    sourceId: `github:${repo}:pr:${pr.number}`,
+    addedBy: 'github-webhook',
+  });
+}
+
+export async function upsertIssueEntry(workspaceId, repo, issue) {
+  const labels = issue.labels?.map((l) => l.name).join(', ');
+  await upsertKnowledge({
+    workspaceId,
+    content: `[${repo} issue #${issue.number}] ${issue.title}${labels ? ` (${labels})` : ''}${issue.body ? '\n' + issue.body.slice(0, 500) : ''}`,
+    source: 'github',
+    sourceId: `github:${repo}:issue:${issue.number}`,
+    addedBy: 'github-webhook',
+  });
 }
 
 // Returns { synced: number, failed: string[] }

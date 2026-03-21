@@ -46,6 +46,15 @@ export async function getAllFacts(workspaceId) {
   return data ?? [];
 }
 
+export async function deleteKnowledge(workspaceId, sourceId) {
+  const { error } = await supabase
+    .from('knowledge')
+    .delete()
+    .eq('workspace_id', workspaceId)
+    .eq('source_id', sourceId);
+  if (error) throw error;
+}
+
 export async function getRelevantFacts(workspaceId, question) {
   try {
     const embedding = await embed(question);

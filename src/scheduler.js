@@ -27,5 +27,6 @@ async function syncAll() {
 export function startScheduler() {
   const minutes = INTERVAL_MS / 60_000;
   console.log(`[scheduler] Auto-sync every ${minutes} minutes`);
+  syncAll(); // run immediately on startup
   setInterval(syncAll, INTERVAL_MS);
 }

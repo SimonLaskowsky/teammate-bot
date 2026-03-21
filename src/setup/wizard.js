@@ -92,7 +92,19 @@ export async function handleWizardStep(ctx) {
 
 async function saveAndSync(ctx, session, integration, selectedItems) {
   const tokenEnc = encrypt(session.token);
-  const config = integration.buildConfig ? integration.buildConfig(selectedItems) : {};
+  let config = integration.buildConfig ? integration.buildConfig(selectedItems) : {};
+
+  // Register webhooks for real-time updates if PUBLIC_URL is configured
+  if (process.env.PUBLIC_URL && integration.registerWebhooks) {
+    const webhookConfig = await integration
+      .registerWebhooks(ctx.workspaceId, session.token, config)
+      .catch((err) => { console.error('[wizard] Webhook registration failed:', err.message); return null; });
+    if (webhookConfig) {
+      config = { ...config, ...webhookConfig };
+      console.log(`[wizard] Registered webhooks for ${integration.displayName}`);
+    }
+  }
+
   await saveIntegration(ctx.workspaceId, session.type, tokenEnc, config);
   sessions.delete(ctx.userId);
 

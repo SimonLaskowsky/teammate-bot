@@ -1,5 +1,6 @@
+import { randomBytes } from 'crypto';
 import { decrypt } from '../../crypto.js';
-import { upsertKnowledge } from '../../knowledge/store.js';
+import { upsertKnowledge, deleteKnowledge } from '../../knowledge/store.js';
 
 export const name = 'clickup';
 export const displayName = 'ClickUp';
@@ -118,6 +119,52 @@ function formatDuration(ms) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+// ── Webhook registration ──────────────────────────────────────────────────────
+
+export async function registerWebhooks(workspaceId, token, config) {
+  if (!process.env.PUBLIC_URL) return null;
+  const teamId = config.workspaces?.[0]?.id;
+  if (!teamId) return null;
+  const webhookToken = randomBytes(32).toString('hex');
+  const url = `${process.env.PUBLIC_URL}/webhooks/clickup/${workspaceId}/${webhookToken}`;
+  const res = await fetch(`${BASE}/team/${teamId}/webhook`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({
+      endpoint: url,
+      events: ['taskCreated', 'taskUpdated', 'taskDeleted', 'taskStatusUpdated', 'taskAssigneeUpdated'],
+    }),
+  });
+  if (!res.ok) { console.error('[clickup] Webhook registration failed:', (await res.json()).err); return null; }
+  const data = await res.json();
+  return { webhookId: data.webhook?.id, webhookToken };
+}
+
+// ── Incremental webhook sync ──────────────────────────────────────────────────
+
+export async function syncSingleTask(workspaceId, taskId, token) {
+  const task = await get(`/task/${taskId}`, token);
+  if (!task) return;
+  const assignees = task.assignees?.map((a) => a.username).join(', ') || 'unassigned';
+  const due = task.due_date ? new Date(parseInt(task.due_date)).toISOString().slice(0, 10) : 'no due date';
+  await upsertKnowledge({
+    workspaceId,
+    content: [
+      `[ClickUp] ${task.name}`,
+      `Status: ${task.status?.status ?? 'unknown'} | Priority: ${task.priority?.priority ?? 'none'} | Assignee: ${assignees} | Due: ${due}`,
+      `Space: ${task.space?.name ?? 'unknown'} > List: ${task.list?.name ?? 'unknown'}`,
+      task.description ? `Description: ${task.description.slice(0, 300)}` : '',
+    ].filter(Boolean).join('\n'),
+    source: 'clickup',
+    sourceId: `clickup:task:${task.id}`,
+    addedBy: 'clickup-webhook',
+  });
+}
+
+export async function deleteTask(workspaceId, taskId) {
+  await deleteKnowledge(workspaceId, `clickup:task:${taskId}`);
 }
 
 export async function sync(workspaceId, integration) {

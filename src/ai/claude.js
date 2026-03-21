@@ -8,10 +8,19 @@ Answer questions about the team, projects, and company.
 Rules:
 - Always call search_knowledge first before answering — it searches the team knowledge base
 - If the user asks about a specific commit's changes, call github_get_commit to fetch the details
-- Be concise and friendly — this is Slack, not a document
-- Use Slack-friendly formatting (bullet points with -, bold with *bold*)
+- Be concise — this is Slack, not a document
 - When facts conflict, prefer the most recent one
-- If you can't find the answer after searching, say so clearly`;
+- If you can't find the answer after searching, say so clearly
+
+Slack formatting — STRICTLY follow these rules, no exceptions:
+- Section headers: use *Header* on its own line (NOT ## or ### — those don't render in Slack)
+- Bold: *text* (NOT **text**)
+- Italic: _text_
+- Lists: start lines with - or •
+- NO horizontal rules (--- does not render)
+- NO markdown tables (| col | — not supported in Slack)
+- NO HTML
+- Code/commands: use \`backticks\``;
 
 const TOOLS = [
   {

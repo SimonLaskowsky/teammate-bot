@@ -163,14 +163,14 @@ export async function handleMessage(ctx) {
   // ── info ─────────────────────────────────────────────────────────────────────
   if (/^\/info$|^info$/i.test(text)) {
     const answer = await answerQuestion(
-      'Generate a dense, fact-only team overview. Search the knowledge base with multiple queries. ' +
-      'STRICT RULE: only include facts explicitly found in the knowledge base — never infer, assume, or invent anything. If something is not in the knowledge base, skip it entirely. ' +
-      'Structure the output in this order: ' +
-      '1. Team Rules & Norms — explicit rules found (deployment rules, processes, workflows). Only include if explicitly stated in knowledge base. ' +
-      '2. Active Work — current ClickUp tasks, open PRs, recent commits. Be specific (task names, PR titles, repo names). ' +
-      '3. Tech Stack — languages, frameworks, tools actually found across projects. ' +
-      '4. Projects — brief list of active/recent repos and what they do. ' +
-      'Keep each section tight. No filler sentences, no "based on the knowledge base" preamble — just the facts.',
+      'Generate a dense team overview. Search the knowledge base using multiple different queries to gather facts. ' +
+      'CRITICAL: only state facts that you actually found in search results — do not invent or infer anything not explicitly in the knowledge base. If a section has no real data, skip it. ' +
+      'Output sections in this order (use *Section Name* as headers, bullet lists, no tables, no ---): ' +
+      '*Team Rules & Norms* — only rules/processes explicitly stated in the knowledge base. ' +
+      '*Active Work* — ClickUp tasks (with status/assignee), recent commits grouped by repo. ' +
+      '*Tech Stack* — languages and frameworks found across repos. ' +
+      '*Projects* — one bullet per repo: name + one-line description of what it does. ' +
+      'Dense and specific. No filler. No preamble.',
       [], [], { onStatus: ctx.onStatus, toolHandlers }
     );
     await reply(answer);

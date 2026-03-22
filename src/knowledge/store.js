@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { embed } from '../ai/embeddings.js';
+import { classifyContent } from '../ai/classify.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -16,10 +17,13 @@ export async function ensureWorkspace(workspaceId, platform = 'slack') {
 // ── Knowledge entries ─────────────────────────────────────────────────────────
 
 export async function addKnowledge({ workspaceId, content, addedBy, source = 'manual', tags = [] }) {
-  const embedding = await embed(content).catch(() => null);
+  const [embedding, category] = await Promise.all([
+    embed(content).catch(() => null),
+    classifyContent(content, source),
+  ]);
   const { data, error } = await supabase
     .from('knowledge')
-    .insert({ workspace_id: workspaceId, content, source, added_by: addedBy, tags, embedding })
+    .insert({ workspace_id: workspaceId, content, source, added_by: addedBy, tags, embedding, category })
     .select()
     .single();
   if (error) throw error;
@@ -28,9 +32,12 @@ export async function addKnowledge({ workspaceId, content, addedBy, source = 'ma
 
 // Upsert by source_id — used by integrations to avoid duplicates on re-sync
 export async function upsertKnowledge({ workspaceId, content, source, sourceId, addedBy }) {
-  const embedding = await embed(content).catch(() => null);
+  const [embedding, category] = await Promise.all([
+    embed(content).catch(() => null),
+    classifyContent(content, source),
+  ]);
   const { error } = await supabase.from('knowledge').upsert(
-    { workspace_id: workspaceId, content, source, source_id: sourceId, added_by: addedBy, embedding },
+    { workspace_id: workspaceId, content, source, source_id: sourceId, added_by: addedBy, embedding, category },
     { onConflict: 'workspace_id,source_id' }
   );
   if (error) throw error;
@@ -95,13 +102,14 @@ export async function deleteKnowledge(workspaceId, sourceId) {
   if (error) throw error;
 }
 
-export async function getRelevantFacts(workspaceId, question) {
+export async function getRelevantFacts(workspaceId, question, { category } = {}) {
   try {
     const embedding = await embed(question);
     const { data, error } = await supabase.rpc('search_knowledge', {
       query_embedding: embedding,
       p_workspace_id: workspaceId,
       p_match_count: 10,
+      p_category: category ?? null,
     });
     if (error) throw error;
     if (data?.length) return data;

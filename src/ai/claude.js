@@ -25,11 +25,16 @@ Slack formatting — STRICTLY follow these rules, no exceptions:
 const TOOLS = [
   {
     name: 'search_knowledge',
-    description: 'Search the team knowledge base for relevant information. Always call this first.',
+    description: 'Search the team knowledge base. Use category to narrow results to the right type of knowledge.',
     input_schema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'What to search for' },
+        category: {
+          type: 'string',
+          enum: ['technical', 'process', 'project', 'people', 'social'],
+          description: 'Optional filter: technical (code/bugs/tools), process (rules/workflows), project (status/milestones), people (who does what/personalities), social (culture/casual)',
+        },
       },
       required: ['query'],
     },
@@ -61,7 +66,7 @@ const TOOLS = [
 ];
 
 const STATUS_LABELS = {
-  search_knowledge: (input) => `Searching knowledge base for _"${input.query}"_...`,
+  search_knowledge: (input) => `Searching ${input.category ? `[${input.category}] ` : ''}knowledge base for _"${input.query}"_...`,
   github_get_commit: (input) => `Fetching commit \`${input.sha}\` from GitHub...`,
   clickup_get_time_entries: (input) => `Fetching time entries from ClickUp${input.assignee_name ? ` for ${input.assignee_name}` : ''}...`,
 };

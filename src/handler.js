@@ -50,7 +50,7 @@ export async function handleMessage(ctx) {
     if (!isAdmin) { await reply('Admin only.'); return; }
     const query = debugSearchMatch[1].trim();
     const facts = await getRelevantFacts(workspaceId, query);
-    const lines = facts.slice(0, 10).map((f, i) => `${i + 1}. [${f.source ?? 'manual'}] ${f.content.slice(0, 120)}`).join('\n');
+    const lines = facts.slice(0, 10).map((f, i) => `${i + 1}. [${f.source ?? 'manual'}][${f.category ?? '?'}] ${f.content.slice(0, 120)}`).join('\n');
     await reply(`*Top ${Math.min(facts.length, 10)} results for "${query}":*\n\n${lines}`);
     return;
   }
@@ -171,10 +171,10 @@ export async function handleMessage(ctx) {
   const history = await getRecentMessages(workspaceId, userId);
 
   const toolHandlers = {
-    search_knowledge: async ({ query }) => {
-      const facts = await getRelevantFacts(workspaceId, query);
+    search_knowledge: async ({ query, category }) => {
+      const facts = await getRelevantFacts(workspaceId, query, { category });
       return facts.length
-        ? facts.map((f) => `- ${f.content}`).join('\n')
+        ? facts.map((f) => `[${f.category ?? 'unknown'}] ${f.content}`).join('\n')
         : 'No relevant results found in knowledge base.';
     },
     github_get_commit: async ({ repo, sha }) => {
